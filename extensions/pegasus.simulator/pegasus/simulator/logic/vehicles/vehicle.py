@@ -18,7 +18,7 @@ import omni.usd
 from isaacsim.core.utils.prims import define_prim, get_prim_at_path
 from omni.usd import get_stage_next_free_path
 from isaacsim.core.api.robots.robot import Robot
-from omni.isaac.dynamic_control import _dynamic_control
+from isaacsim.dynamic_control import _dynamic_control
 
 # Extension APIs
 from pegasus.simulator.logic.state import State

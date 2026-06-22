@@ -19,7 +19,7 @@ from isaacsim.core.utils import prims
 from omni.usd import get_stage_next_free_path
 from isaacsim.storage.native import get_assets_root_path
 
-from omni.isaac.core import SimulationContext
+from isaacsim.core import SimulationContext
 
 # New imports from the replicator API
 import omni.anim.graph.core as ag

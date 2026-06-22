@@ -20,9 +20,9 @@ simulation_app = SimulationApp({"headless": False})
 # The actual script should start here
 # -----------------------------------
 import omni.timeline
-from omni.isaac.core.world import World
+from isaacsim.core.world import World
 
-from omni.isaac.core.objects import DynamicCuboid
+from isaacsim.core.objects import DynamicCuboid
 import numpy as np
 
 # Import the Pegasus API for simulating drones

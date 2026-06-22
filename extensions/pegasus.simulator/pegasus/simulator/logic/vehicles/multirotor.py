@@ -7,7 +7,7 @@
 
 import numpy as np
 
-from omni.isaac.dynamic_control import _dynamic_control
+from isaacsim.dynamic_control import _dynamic_control
 
 # The vehicle interface
 from pegasus.simulator.logic.vehicles.vehicle import Vehicle
