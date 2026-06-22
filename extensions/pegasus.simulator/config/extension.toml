@@ -37,7 +37,6 @@ icon = "data/icon.png"
 "omni.ui" = {}
 "omni.usd" = {}
 "omni.kit.uiapp" = {}
-"isaacsim.core" = {}
 "omni.ui.scene" = {}
 "omni.kit.capture.viewport" = {}
 "isaacsim.replicator.agent.core" = {}
