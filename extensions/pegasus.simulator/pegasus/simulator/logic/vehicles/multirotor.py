@@ -118,6 +118,9 @@ class Multirotor(Vehicle):
             dt (float): The time elapsed between the previous and current function calls (s).
         """
 
+        carb.log_warn("=== MULTIROTOR UPDATE CALLED ===")
+        carb.log_warn(f"backends={len(self._backends)} state.attitude={self._state.attitude}")
+
         # Get the articulation root of the vehicle
         articulation = self.get_articulation()
 

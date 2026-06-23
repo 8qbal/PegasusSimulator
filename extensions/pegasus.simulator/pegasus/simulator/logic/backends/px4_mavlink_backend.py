@@ -562,14 +562,9 @@ class PX4MavlinkBackend(Backend):
         self._last_heartbeat_sent_time = 0
 
     def wait_for_first_hearbeat(self):
-        """
-        Responsible for waiting for the first hearbeat. This method is locking and will only return
-        if an hearbeat is received via mavlink. When this first heartbeat is received poll for mavlink messages
-        """
-
-        # Wait for the connection to be established
         if self._connection is None:
-            return 
+            carb.log_warn("wait_for_first_hearbeat: connection is None!")
+            return
 
         carb.log_warn("Waiting for first hearbeat")
         result = self._connection.wait_heartbeat(blocking=False)
@@ -579,14 +574,8 @@ class PX4MavlinkBackend(Backend):
             carb.log_warn("Received first hearbeat")
 
     def update(self, dt):
-        """
-        Method that is called at every physics step to send data to px4 and receive the control inputs via mavlink
+        carb.log_warn(f"=== PX4 BACKEND UPDATE: received_first_hearbeat={self._received_first_hearbeat}, connection={self._connection is not None} ===")
 
-        Args:
-            dt (float): The time elapsed between the previous and current function calls (s).
-        """
-
-        # Check for the first hearbeat on the first few iterations
         if not self._received_first_hearbeat:
             self.wait_for_first_hearbeat()
             return
