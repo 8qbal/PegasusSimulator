@@ -5,6 +5,7 @@
 | Description: Definition of the Multirotor class which is used as the base for all the multirotor vehicles.
 """
 
+import carb
 import numpy as np
 from omni.usd import get_world_transform_matrix
 
