@@ -11,7 +11,7 @@ from scipy.spatial.transform import Rotation
 
 # Low level APIs
 import carb
-from pxr import Usd, Gf, PhysxSchema
+from pxr import Usd, Gf
 
 # High level Isaac sim APIs
 import omni.usd
@@ -255,25 +255,21 @@ class Vehicle(Robot):
         if not prim.IsValid():
             return
 
-        physx_api = PhysxSchema.PhysxRigidBodyAPI.Get(self._current_stage, prim_path)
-        if not physx_api:
-            physx_api = PhysxSchema.PhysxRigidBodyAPI.Apply(prim)
-
         rot = Rotation.from_quat(self._state.attitude)
         world_force = rot.apply(np.array(force, dtype=np.float64))
 
-        force_attr = physx_api.GetForceAttr()
+        force_attr = prim.GetAttribute("physxForce:force")
         if not force_attr:
-            force_attr = physx_api.CreateForceAttr()
+            force_attr = prim.CreateAttribute("physxForce:force", Gf.Vec3f)
         force_attr.Set(Gf.Vec3f(*world_force))
 
         pos_arr = np.array(pos, dtype=np.float64)
         if np.any(pos_arr != 0.0):
             torque = np.cross(pos_arr, np.array(force, dtype=np.float64))
             world_torque = rot.apply(torque)
-            torque_attr = physx_api.GetTorqueAttr()
+            torque_attr = prim.GetAttribute("physxTorque:torque")
             if not torque_attr:
-                torque_attr = physx_api.CreateTorqueAttr()
+                torque_attr = prim.CreateAttribute("physxTorque:torque", Gf.Vec3f)
             torque_attr.Set(Gf.Vec3f(*world_torque))
 
     def apply_torque(self, torque, body_part="/body"):
@@ -282,16 +278,12 @@ class Vehicle(Robot):
         if not prim.IsValid():
             return
 
-        physx_api = PhysxSchema.PhysxRigidBodyAPI.Get(self._current_stage, prim_path)
-        if not physx_api:
-            physx_api = PhysxSchema.PhysxRigidBodyAPI.Apply(prim)
-
         rot = Rotation.from_quat(self._state.attitude)
         world_torque = rot.apply(np.array(torque, dtype=np.float64))
 
-        torque_attr = physx_api.GetTorqueAttr()
+        torque_attr = prim.GetAttribute("physxTorque:torque")
         if not torque_attr:
-            torque_attr = physx_api.CreateTorqueAttr()
+            torque_attr = prim.CreateAttribute("physxTorque:torque", Gf.Vec3f)
         torque_attr.Set(Gf.Vec3f(*world_torque))
 
     def update_state(self, dt: float):
