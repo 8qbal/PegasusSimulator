@@ -164,6 +164,9 @@ class Multirotor(Vehicle):
             articulation (Articulation): The articulation group the joints of the rotors belong to
         """
 
+        if not articulation.is_physics_tensor_entity_valid():
+            return
+
         # Get the DOF index for this joint
         dof_idx = articulation.get_dof_indices(["joint" + str(rotor_number)])
 
