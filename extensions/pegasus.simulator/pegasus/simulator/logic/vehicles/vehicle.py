@@ -18,7 +18,7 @@ import omni.usd
 from isaacsim.core.utils.prims import define_prim, get_prim_at_path
 from omni.usd import get_stage_next_free_path
 from isaacsim.core.api.robots.robot import Robot
-from isaacsim.dynamic_control import _dynamic_control
+from isaacsim.core.experimental.prims import RigidPrim, Articulation
 
 # Extension APIs
 from pegasus.simulator.logic.state import State
@@ -94,7 +94,9 @@ class Vehicle(Robot):
             articulation_controller=None,
         )
 
-        self._vehicle_dc_interface = None
+        self._body_rigid_prim = None
+        self._rigid_prims_cache = {}
+        self._articulation = None
 
         # Add this object for the world to track, so that if we clear the world, this object is deleted from memory and
         # as a consequence, from the VehicleManager as well
@@ -230,8 +232,10 @@ class Vehicle(Robot):
         if self._world.is_stopped() and self._sim_running == True:
             self._sim_running = False
 
-            # Reset the DC interface
-            self._vehicle_dc_interface = None
+            # Reset the cached prims and articulation
+            self._body_rigid_prim = None
+            self._rigid_prims_cache = {}
+            self._articulation = None
 
             # Stop the sensors
             for sensor in self._sensors:
@@ -258,11 +262,17 @@ class Vehicle(Robot):
             body_part (str): . Defaults to "/body".
         """
 
-        # Get the handle of the rigidbody that we will apply the force to
-        rb = self.get_dc_interface().get_rigid_body(self._stage_prefix + body_part)
+        # Get or create the rigid prim for the body part
+        prim_path = self._stage_prefix + body_part
+        if prim_path not in self._rigid_prims_cache:
+            self._rigid_prims_cache[prim_path] = RigidPrim(prim_path)
 
-        # Apply the force to the rigidbody. The force should be expressed in the rigidbody frame
-        self.get_dc_interface().apply_body_force(rb, carb._carb.Float3(force), carb._carb.Float3(pos), False)
+        # Apply the force at the specified position in the local frame
+        self._rigid_prims_cache[prim_path].apply_forces_and_torques_at_pos(
+            forces=np.array([force], dtype=np.float32),
+            positions=np.array([pos], dtype=np.float32),
+            local_frame=True
+        )
 
     def apply_torque(self, torque, body_part="/body"):
         """
@@ -273,11 +283,16 @@ class Vehicle(Robot):
             body_part (str): . Defaults to "/body".
         """
 
-        # Get the handle of the rigidbody that we will apply a torque to
-        rb = self.get_dc_interface().get_rigid_body(self._stage_prefix + body_part)
+        # Get or create the rigid prim for the body part
+        prim_path = self._stage_prefix + body_part
+        if prim_path not in self._rigid_prims_cache:
+            self._rigid_prims_cache[prim_path] = RigidPrim(prim_path)
 
-        # Apply the torque to the rigidbody. The torque should be expressed in the rigidbody frame
-        self.get_dc_interface().apply_body_torque(rb, carb._carb.Float3(torque), False)
+        # Apply the torque in the local frame
+        self._rigid_prims_cache[prim_path].apply_forces_and_torques_at_pos(
+            torques=np.array([torque], dtype=np.float32),
+            local_frame=True
+        )
 
     def update_state(self, dt: float):
         """
@@ -288,38 +303,34 @@ class Vehicle(Robot):
             dt (float): The time elapsed between the previous and current function calls (s).
         """
 
-        # Get the body frame interface of the vehicle (this will be the frame used to get the position, orientation, etc.)
-        body = self.get_dc_interface().get_rigid_body(self._stage_prefix + "/body")
+        # Get the body rigid prim (lazily created)
+        if self._body_rigid_prim is None:
+            self._body_rigid_prim = RigidPrim(self._stage_prefix + "/body")
 
         # Get the current position and orientation in the inertial frame
-        pose = self.get_dc_interface().get_rigid_body_pose(body)
+        positions, orientations = self._body_rigid_prim.get_world_poses()
+        pos = positions.numpy()[0]
+        orient_wxyz = orientations.numpy()[0]
 
-        # Get the attitude according to the convention [w, x, y, z]
-        prim = self._world.stage.GetPrimAtPath(self._stage_prefix + "/body")
-        rotation_quat = get_world_transform_xform(prim).GetQuaternion()
-        rotation_quat_real = rotation_quat.GetReal()
-        rotation_quat_img = rotation_quat.GetImaginary()
-
-        # Get the angular velocity of the vehicle expressed in the body frame of reference
-        ang_vel = self.get_dc_interface().get_rigid_body_angular_velocity(body)
-
-        # The linear velocity [x_dot, y_dot, z_dot] of the vehicle's body frame expressed in the inertial frame of reference
-        linear_vel = self.get_dc_interface().get_rigid_body_linear_velocity(body)
+        # Get the linear and angular velocities
+        linear_vel_arr, angular_vel_arr = self._body_rigid_prim.get_velocities()
+        linear_vel = linear_vel_arr.numpy()[0]
+        ang_vel = angular_vel_arr.numpy()[0]
 
         # Get the linear acceleration of the body relative to the inertial frame, expressed in the inertial frame
         # Note: we must do this approximation, since the Isaac sim does not output the acceleration of the rigid body directly
         linear_acceleration = (np.array(linear_vel) - self._state.linear_velocity) / dt
 
         # Update the state variable X = [x,y,z]
-        self._state.position = np.array(pose.p)
+        self._state.position = pos
 
         # Get the quaternion according in the [qx,qy,qz,qw] standard
         self._state.attitude = np.array(
-            [rotation_quat_img[0], rotation_quat_img[1], rotation_quat_img[2], rotation_quat_real]
+            [orient_wxyz[1], orient_wxyz[2], orient_wxyz[3], orient_wxyz[0]]
         )
 
         # Express the velocity of the vehicle in the inertial frame X_dot = [x_dot, y_dot, z_dot]
-        self._state.linear_velocity = np.array(linear_vel)
+        self._state.linear_velocity = linear_vel
 
         # The linear velocity V =[u,v,w] of the vehicle's body frame expressed in the body frame of reference
         # Note that: x_dot = Rot * V
@@ -328,7 +339,7 @@ class Vehicle(Robot):
         )
 
         # omega = [p,q,r]
-        self._state.angular_velocity = Rotation.from_quat(self._state.attitude).inv().apply(np.array(ang_vel))
+        self._state.angular_velocity = Rotation.from_quat(self._state.attitude).inv().apply(ang_vel)
 
         # The acceleration of the vehicle expressed in the inertial frame X_ddot = [x_ddot, y_ddot, z_ddot]
         self._state.linear_acceleration = linear_acceleration
@@ -405,9 +416,16 @@ class Vehicle(Robot):
         for backend in self._backends:
             backend.update_state(self._state)
 
-    def get_dc_interface(self):
+    def get_body_prim(self):
 
-        if self._vehicle_dc_interface is None:
-            self._vehicle_dc_interface = _dynamic_control.acquire_dynamic_control_interface()
+        if self._body_rigid_prim is None:
+            self._body_rigid_prim = RigidPrim(self._stage_prefix + "/body")
 
-        return self._vehicle_dc_interface
+        return self._body_rigid_prim
+
+    def get_articulation(self):
+
+        if self._articulation is None:
+            self._articulation = Articulation(self._stage_prefix)
+
+        return self._articulation
