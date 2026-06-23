@@ -11,7 +11,7 @@ from scipy.spatial.transform import Rotation
 
 # Low level APIs
 import carb
-from pxr import Usd, Gf
+from pxr import Usd, Gf, Sdf
 
 # High level Isaac sim APIs
 import omni.usd
@@ -260,7 +260,7 @@ class Vehicle(Robot):
 
         force_attr = prim.GetAttribute("physxForce:force")
         if not force_attr:
-            force_attr = prim.CreateAttribute("physxForce:force", Gf.Vec3f)
+            force_attr = prim.CreateAttribute("physxForce:force", Sdf.ValueTypeNames.Vector3f)
         force_attr.Set(Gf.Vec3f(*world_force))
 
         pos_arr = np.array(pos, dtype=np.float64)
@@ -269,7 +269,7 @@ class Vehicle(Robot):
             world_torque = rot.apply(torque)
             torque_attr = prim.GetAttribute("physxTorque:torque")
             if not torque_attr:
-                torque_attr = prim.CreateAttribute("physxTorque:torque", Gf.Vec3f)
+                torque_attr = prim.CreateAttribute("physxTorque:torque", Sdf.ValueTypeNames.Vector3f)
             torque_attr.Set(Gf.Vec3f(*world_torque))
 
     def apply_torque(self, torque, body_part="/body"):
@@ -283,7 +283,7 @@ class Vehicle(Robot):
 
         torque_attr = prim.GetAttribute("physxTorque:torque")
         if not torque_attr:
-            torque_attr = prim.CreateAttribute("physxTorque:torque", Gf.Vec3f)
+            torque_attr = prim.CreateAttribute("physxTorque:torque", Sdf.ValueTypeNames.Vector3f)
         torque_attr.Set(Gf.Vec3f(*world_torque))
 
     def update_state(self, dt: float):
