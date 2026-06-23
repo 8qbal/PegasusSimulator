@@ -5,7 +5,6 @@
 | Description: Definition of the Multirotor class which is used as the base for all the multirotor vehicles.
 """
 
-import carb
 import numpy as np
 from omni.usd import get_world_transform_matrix
 
@@ -118,9 +117,6 @@ class Multirotor(Vehicle):
         Args:
             dt (float): The time elapsed between the previous and current function calls (s).
         """
-
-        carb.log_warn("=== MULTIROTOR UPDATE CALLED ===")
-        carb.log_warn(f"backends={len(self._backends)} state.attitude={self._state.attitude}")
 
         # Get the articulation root of the vehicle
         articulation = self.get_articulation()

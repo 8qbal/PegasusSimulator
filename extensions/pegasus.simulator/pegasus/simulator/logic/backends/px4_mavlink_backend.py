@@ -196,7 +196,7 @@ class PX4MavlinkBackendConfig(BackendConfig):
             The dictionary default parameters are
 
             >>> {"vehicle_id": 0,           
-            >>>  "connection_type": "tcpin",           
+            >>>  "connection_type": "udpin",           
             >>>  "connection_ip": "localhost",
             >>>  "connection_baseport": 4560,
             >>>  "px4_autolaunch": True,
@@ -215,7 +215,7 @@ class PX4MavlinkBackendConfig(BackendConfig):
         self.config = config
         
         self.vehicle_id = self.config.get("vehicle_id", 0)
-        self.connection_type = self.config.get("connection_type", "tcpin")
+        self.connection_type = self.config.get("connection_type", "udpin")
         self.connection_ip = self.config.get("connection_ip", "localhost")
         self.connection_baseport = self.config.get("connection_baseport", 4560)
 
@@ -563,19 +563,14 @@ class PX4MavlinkBackend(Backend):
 
     def wait_for_first_hearbeat(self):
         if self._connection is None:
-            carb.log_warn("wait_for_first_hearbeat: connection is None!")
             return
 
-        carb.log_warn("Waiting for first hearbeat")
         result = self._connection.wait_heartbeat(blocking=False)
 
         if result is not None:
             self._received_first_hearbeat = True
-            carb.log_warn("Received first hearbeat")
 
     def update(self, dt):
-        carb.log_warn(f"=== PX4 BACKEND UPDATE: received_first_hearbeat={self._received_first_hearbeat}, connection={self._connection is not None} ===")
-
         if not self._received_first_hearbeat:
             self.wait_for_first_hearbeat()
             return

@@ -209,13 +209,9 @@ class Vehicle(Robot):
             event: A timeline event generated from Isaac Sim, such as starting or stoping the simulation.
         """
 
-        carb.log_warn("=== SIM_START_STOP CALLED ===")
-        carb.log_warn(f"is_playing={self._world.is_playing()} sim_running={self._sim_running}")
-
         # If the start/stop button was pressed, then call the start and stop methods accordingly
         if self._world.is_playing() and self._sim_running == False:
             self._sim_running = True
-            carb.log_warn("=== STARTING BACKENDS ===")
 
             # Initialize the sensors
             for sensor in self._sensors:
