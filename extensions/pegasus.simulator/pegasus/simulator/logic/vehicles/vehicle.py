@@ -11,7 +11,7 @@ from scipy.spatial.transform import Rotation
 
 # Low level APIs
 import carb
-from pxr import Usd, Gf
+from pxr import Usd, Gf, PhysxSchema
 
 # High level Isaac sim APIs
 import omni.usd
@@ -95,7 +95,6 @@ class Vehicle(Robot):
         )
 
         self._body_rigid_prim = None
-        self._rigid_prims_cache = {}
         self._articulation = None
 
         # Add this object for the world to track, so that if we clear the world, this object is deleted from memory and
@@ -234,7 +233,6 @@ class Vehicle(Robot):
 
             # Reset the cached prims and articulation
             self._body_rigid_prim = None
-            self._rigid_prims_cache = {}
             self._articulation = None
 
             # Stop the sensors
@@ -252,47 +250,49 @@ class Vehicle(Robot):
             self.stop()
 
     def apply_force(self, force, pos=[0.0, 0.0, 0.0], body_part="/body"):
-        """
-        Method that will apply a force on the rigidbody, on the part specified in the 'body_part' at its relative position
-        given by 'pos' (following a FLU) convention. 
-
-        Args:
-            force (list): A 3-dimensional vector of floats with the force [Fx, Fy, Fz] on the body axis of the vehicle according to a FLU convention.
-            pos (list): _description_. Defaults to [0.0, 0.0, 0.0].
-            body_part (str): . Defaults to "/body".
-        """
-
-        # Get or create the rigid prim for the body part
         prim_path = self._stage_prefix + body_part
-        if prim_path not in self._rigid_prims_cache:
-            self._rigid_prims_cache[prim_path] = RigidPrim(prim_path)
+        prim = self._current_stage.GetPrimAtPath(prim_path)
+        if not prim.IsValid():
+            return
 
-        # Apply the force at the specified position in the local frame
-        self._rigid_prims_cache[prim_path].apply_forces_and_torques_at_pos(
-            forces=np.array([force], dtype=np.float32),
-            positions=np.array([pos], dtype=np.float32),
-            local_frame=True
-        )
+        physx_api = PhysxSchema.PhysxRigidBodyAPI.Get(self._current_stage, prim_path)
+        if not physx_api:
+            physx_api = PhysxSchema.PhysxRigidBodyAPI.Apply(prim)
+
+        rot = Rotation.from_quat(self._state.attitude)
+        world_force = rot.apply(np.array(force, dtype=np.float64))
+
+        force_attr = physx_api.GetForceAttr()
+        if not force_attr:
+            force_attr = physx_api.CreateForceAttr()
+        force_attr.Set(Gf.Vec3f(*world_force))
+
+        pos_arr = np.array(pos, dtype=np.float64)
+        if np.any(pos_arr != 0.0):
+            torque = np.cross(pos_arr, np.array(force, dtype=np.float64))
+            world_torque = rot.apply(torque)
+            torque_attr = physx_api.GetTorqueAttr()
+            if not torque_attr:
+                torque_attr = physx_api.CreateTorqueAttr()
+            torque_attr.Set(Gf.Vec3f(*world_torque))
 
     def apply_torque(self, torque, body_part="/body"):
-        """
-        Method that when invoked applies a given torque vector to /<rigid_body_name>/"body" or to /<rigid_body_name>/<body_part>.
-
-        Args:
-            torque (list): A 3-dimensional vector of floats with the force [Tx, Ty, Tz] on the body axis of the vehicle according to a FLU convention.
-            body_part (str): . Defaults to "/body".
-        """
-
-        # Get or create the rigid prim for the body part
         prim_path = self._stage_prefix + body_part
-        if prim_path not in self._rigid_prims_cache:
-            self._rigid_prims_cache[prim_path] = RigidPrim(prim_path)
+        prim = self._current_stage.GetPrimAtPath(prim_path)
+        if not prim.IsValid():
+            return
 
-        # Apply the torque in the local frame
-        self._rigid_prims_cache[prim_path].apply_forces_and_torques_at_pos(
-            torques=np.array([torque], dtype=np.float32),
-            local_frame=True
-        )
+        physx_api = PhysxSchema.PhysxRigidBodyAPI.Get(self._current_stage, prim_path)
+        if not physx_api:
+            physx_api = PhysxSchema.PhysxRigidBodyAPI.Apply(prim)
+
+        rot = Rotation.from_quat(self._state.attitude)
+        world_torque = rot.apply(np.array(torque, dtype=np.float64))
+
+        torque_attr = physx_api.GetTorqueAttr()
+        if not torque_attr:
+            torque_attr = physx_api.CreateTorqueAttr()
+        torque_attr.Set(Gf.Vec3f(*world_torque))
 
     def update_state(self, dt: float):
         """
