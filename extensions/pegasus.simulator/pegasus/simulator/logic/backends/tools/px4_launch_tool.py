@@ -40,7 +40,7 @@ class PX4LaunchTool:
         # Create a temporary filesystem for px4 to write data to/from (and modify the origin rcS files)
         self.root_fs = tempfile.TemporaryDirectory()
 
-        # Set the environement variables that let PX4 know which vehicle model to use internally
+        # Set the environment variables that let PX4 know which vehicle model to use
         self.environment = os.environ
         self.environment["PX4_SIM_MODEL"] = px4_model
 

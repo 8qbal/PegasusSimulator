@@ -119,17 +119,13 @@ class Person:
         if self._backend:
             self._backend.initialize(self)
 
-        # Add a callback to the physics engine to update the current state of the person
-        self._world.add_physics_callback(self._stage_prefix + "/state", self.update_state)
-
-        # Add the update method to the physics callback if the world was received
-        # so that we can apply the new references to be tracked by the person
-        self._world.add_physics_callback(self._stage_prefix + "/update", self.update)
-
         # Set the flag that signals if the simulation is running or not
         self._sim_running = False
+        self._physics_callbacks_registered = False
 
-        # Add a callback to start/stop of the simulation once the play/stop button is hit
+        # Add a callback to start/stop of the simulation once the play/stop button is hit.
+        # Physics callbacks (/state, /update) are registered in sim_start_stop instead
+        # of __init__ to ensure they fire only after simulation views are initialized.
         self._world.add_timeline_callback(self._stage_prefix + "/start_stop_sim", self.sim_start_stop)
 
     @property
@@ -141,6 +137,25 @@ class Person:
         """
         return self._state
     
+    def _register_physics_callbacks(self):
+        if self._physics_callbacks_registered:
+            return
+        self._world.add_physics_callback(self._stage_prefix + "/state", self._update_state_safe)
+        self._world.add_physics_callback(self._stage_prefix + "/update", self._update_safe)
+        self._physics_callbacks_registered = True
+
+    def _update_state_safe(self, dt):
+        try:
+            self.update_state(dt)
+        except Exception as e:
+            carb.log_warn(f"[{self._stage_prefix}] update_state failed: {e}")
+
+    def _update_safe(self, dt):
+        try:
+            self.update(dt)
+        except Exception as e:
+            carb.log_warn(f"[{self._stage_prefix}] update failed: {e}")
+
     def sim_start_stop(self, event):
         """
         Callback that is called every time there is a timeline event such as starting/stoping the simulation.
@@ -153,9 +168,11 @@ class Person:
         if self._world.is_playing() and self._sim_running == False:
             self._sim_running = True
             self.start()
+            self._register_physics_callbacks()
 
         if self._world.is_stopped() and self._sim_running == True:
             self._sim_running = False
+            self._physics_callbacks_registered = False
             self.stop()
 
     def start(self):

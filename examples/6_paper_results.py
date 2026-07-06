@@ -21,7 +21,7 @@ simulation_app = SimulationApp({"headless": False})
 # The actual script should start here
 # -----------------------------------
 import omni.timeline
-from isaacsim.core.world import World
+from isaacsim.core.api import World
 
 # Used for adding extra lights to the environment
 import isaacsim.core.utils.prims as prim_utils

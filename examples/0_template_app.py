@@ -19,7 +19,7 @@ simulation_app = SimulationApp({"headless": False})
 # The actual script should start here
 # -----------------------------------
 import omni.timeline
-from isaacsim.core import World
+from isaacsim.core.api import World
 
 class Template:
     """

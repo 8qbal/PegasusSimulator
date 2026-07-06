@@ -195,8 +195,8 @@ class PX4MavlinkBackendConfig(BackendConfig):
         Examples:
             The dictionary default parameters are
 
-            >>> {"vehicle_id": 0,           
-            >>>  "connection_type": "udpin",           
+            >>> {"vehicle_id": 0,
+            >>>  "connection_type": "tcpin",
             >>>  "connection_ip": "localhost",
             >>>  "connection_baseport": 4560,
             >>>  "px4_autolaunch": True,
@@ -215,7 +215,12 @@ class PX4MavlinkBackendConfig(BackendConfig):
         self.config = config
         
         self.vehicle_id = self.config.get("vehicle_id", 0)
-        self.connection_type = self.config.get("connection_type", "udpin")
+        # PX4 SITL connects to the simulator as a TCP client (it runs
+        # 'simulator_mavlink start -c <port>'), so the simulator must be a TCP
+        # server. In pymavlink that is the 'tcpin' connection type. Do NOT use
+        # udp/udpout here: PX4 will not switch to UDP (PX4_SIM_PROTOCOL is unused
+        # in PX4 >= v1.16) and the HIL sensor link will silently never connect.
+        self.connection_type = self.config.get("connection_type", "tcpin")
         self.connection_ip = self.config.get("connection_ip", "localhost")
         self.connection_baseport = self.config.get("connection_baseport", 4560)
 
@@ -366,19 +371,23 @@ class PX4MavlinkBackend(Backend):
         self._sensor_data.altitude = int(data["altitude"] * 1000)
         self._sensor_data.eph = int(data["eph"])
         self._sensor_data.epv = int(data["epv"])
-        self._sensor_data.velocity = int(data["speed"] * 100)
-        self._sensor_data.velocity_north = int(data["velocity_north"] * 100)
-        self._sensor_data.velocity_east = int(data["velocity_east"] * 100)
-        self._sensor_data.velocity_down = int(data["velocity_down"] * 100)
+        # HIL_GPS velocity fields: vel is uint16, vn/ve/vd are int16 (all cm/s) — clamp to avoid
+        # mavlink struct packing errors on physics spikes
+        self._sensor_data.velocity = int(np.clip(data["speed"] * 100, 0, 65535))
+        self._sensor_data.velocity_north = int(np.clip(data["velocity_north"] * 100, -32767, 32767))
+        self._sensor_data.velocity_east = int(np.clip(data["velocity_east"] * 100, -32767, 32767))
+        self._sensor_data.velocity_down = int(np.clip(data["velocity_down"] * 100, -32767, 32767))
         self._sensor_data.cog = int(data["cog"] * 100)
         self._sensor_data.satellites_visible = int(data["sattelites_visible"])
 
         # Signal that we have new GPS data
         self._sensor_data.new_gps_data = True
 
-        # Also update the groundtruth for the latitude and longitude
-        self._sensor_data.sim_lat = int(data["latitude_gt"] * 10000000)
-        self._sensor_data.sim_lon = int(data["longitude_gt"] * 10000000)
+        # Also update the groundtruth for the latitude and longitude.
+        # latitude_gt/longitude_gt from the GPS sensor are in radians; convert to degrees
+        # before applying the standard 1e7 integer encoding expected by MAVLink.
+        self._sensor_data.sim_lat = int(np.degrees(data["latitude_gt"]) * 10000000)
+        self._sensor_data.sim_lon = int(np.degrees(data["longitude_gt"]) * 10000000)
         self._sensor_data.sim_alt = int(data["altitude_gt"] * 1000)
 
     def update_bar_data(self, data):
@@ -452,24 +461,27 @@ class PX4MavlinkBackend(Backend):
         self._sensor_data.sim_angular_vel[1] = ang_vel[1]
         self._sensor_data.sim_angular_vel[2] = ang_vel[2]
 
-        # Get the acceleration
+        # Get the acceleration. The HIL_STATE_QUATERNION message expects int16 values in mG
+        # (1 G = 9.80665 m/s^2), so convert and clamp to avoid struct packing errors on impact spikes.
         acc_vel = state.get_linear_acceleration_ned()
-        self._sensor_data.sim_acceleration[0] = int(acc_vel[0] * 1000)
-        self._sensor_data.sim_acceleration[1] = int(acc_vel[1] * 1000)
-        self._sensor_data.sim_acceleration[2] = int(acc_vel[2] * 1000)
+        self._sensor_data.sim_acceleration[0] = int(np.clip(acc_vel[0] / 9.80665 * 1000, -32767, 32767))
+        self._sensor_data.sim_acceleration[1] = int(np.clip(acc_vel[1] / 9.80665 * 1000, -32767, 32767))
+        self._sensor_data.sim_acceleration[2] = int(np.clip(acc_vel[2] / 9.80665 * 1000, -32767, 32767))
 
         # Get the latitude, longitude and altitude directly from the GPS
 
-        # Get the linear velocity of the vehicle in the inertial frame
+        # Get the linear velocity of the vehicle in the inertial frame (int16 fields, cm/s)
         lin_vel = state.get_linear_velocity_ned()
-        self._sensor_data.sim_velocity_inertial[0] = int(lin_vel[0] * 100)
-        self._sensor_data.sim_velocity_inertial[1] = int(lin_vel[1] * 100)
-        self._sensor_data.sim_velocity_inertial[2] = int(lin_vel[2] * 100)
+        self._sensor_data.sim_velocity_inertial[0] = int(np.clip(lin_vel[0] * 100, -32767, 32767))
+        self._sensor_data.sim_velocity_inertial[1] = int(np.clip(lin_vel[1] * 100, -32767, 32767))
+        self._sensor_data.sim_velocity_inertial[2] = int(np.clip(lin_vel[2] * 100, -32767, 32767))
 
         # Compute the air_speed - assumed indicated airspeed due to flow aligned with pitot (body x)
+        # Both airspeed fields are uint16 (cm/s), so they must never go negative — a slightly
+        # negative body velocity while resting on the ground would otherwise crash the mavlink send.
         body_vel = state.get_linear_body_velocity_ned_frd()
-        self._sensor_data.sim_ind_airspeed = int(body_vel[0] * 100)
-        self._sensor_data.sim_true_airspeed = int(np.linalg.norm(lin_vel) * 100)  # TODO - add wind here
+        self._sensor_data.sim_ind_airspeed = int(np.clip(body_vel[0] * 100, 0, 65535))
+        self._sensor_data.sim_true_airspeed = int(np.clip(np.linalg.norm(lin_vel) * 100, 0, 65535))  # TODO - add wind here
 
         self._sensor_data.new_sim_state = True
 
@@ -499,14 +511,14 @@ class PX4MavlinkBackend(Backend):
         if self._is_running == True:
             return
 
-        # If the connection no longer exists (we stoped and re-started the stream, then re_intialize the interface)
-        if self._connection is None:
-            self.re_initialize_interface()
-
         # Set the flag to signal that the mavlink transmission has started
         self._is_running = True
 
-        # Launch the PX4 in the background if needed
+        # Start the TCP server FIRST so it's listening before PX4 tries to connect
+        if self._connection is None:
+            self.re_initialize_interface()
+
+        # Launch the PX4 in the background (PX4 will connect to our TCP server)
         if self.px4_autolaunch and self.px4_tool is None:
             carb.log_info("Attempting to launch PX4 in background process")
             self.px4_tool = PX4LaunchTool(self.px4_dir, self._vehicle_id, self.px4_vehicle_model)
@@ -529,7 +541,7 @@ class PX4MavlinkBackend(Backend):
         self._connection = None
 
         # Close the PX4 if it was running
-        if self.px4_autolaunch and self.px4_autolaunch is not None:
+        if self.px4_autolaunch and self.px4_tool is not None:
             carb.log_info("Attempting to kill PX4 background process")
             self.px4_tool.kill_px4()
             self.px4_tool = None
@@ -543,14 +555,16 @@ class PX4MavlinkBackend(Backend):
         """Auxiliar method used to get the MavlinkInterface to reset the MavlinkInterface to its initial state
         """
 
-        self._is_running = False
-
         # Restart the sensor data
         self._sensor_data = SensorMsg()
 
         # Restart the connection
-        carb.log_info(f"Connection to backend at {self._connection_port}")
-        self._connection = mavutil.mavlink_connection(self._connection_port)
+        try:
+            carb.log_warn(f"Connection to backend at {self._connection_port}")
+            self._connection = mavutil.mavlink_connection(self._connection_port)
+        except Exception as e:
+            carb.log_warn(f"Could not connect to PX4 backend: {e}")
+            self._connection = None
 
         # Auxiliar variables to handle the lockstep between receiving sensor data and actuator control
         self._received_first_actuator: bool = False
@@ -561,43 +575,48 @@ class PX4MavlinkBackend(Backend):
 
         self._last_heartbeat_sent_time = 0
 
-    def wait_for_first_hearbeat(self):
+    def update(self, dt):
         if self._connection is None:
-            return
+            self.re_initialize_interface()
+            if self._connection is None:
+                return
+            # Connection was recreated — ensure PX4 is also running
+            if self.px4_autolaunch and self.px4_tool is None:
+                carb.log_info("Attempting to launch PX4 in background process")
+                self.px4_tool = PX4LaunchTool(self.px4_dir, self._vehicle_id, self.px4_vehicle_model)
+                self.px4_tool.launch_px4()
 
-        result = self._connection.wait_heartbeat(blocking=False)
-
-        if result is not None:
+        if (time.time() - self._last_heartbeat_sent_time) > 0.1:
+            try:
+                self.send_heartbeat()
+            except Exception as e:
+                carb.log_warn(f"Heartbeat send failed: {e}")
+                self._connection = None
+                return
+            self._last_heartbeat_sent_time = time.time()
             self._received_first_hearbeat = True
 
-    def update(self, dt):
-        if not self._received_first_hearbeat:
-            self.wait_for_first_hearbeat()
-            return
+        try:
+            self.poll_mavlink_messages()
+        except Exception as e:
+            carb.log_warn(f"poll_mavlink_messages failed: {e}")
 
-        # Check if we have already received IMU data. If not, start the lockstep and wait for more data
-        if self._sensor_data.received_first_imu:
-            while not self._sensor_data.new_imu_data and self._is_running:
-                # Just go for the next update and then try to check if we have new simulated sensor data
-                # DO not continue and get mavlink thrusters commands until we have simulated IMU data available
-                return
-
-        # Check if we have received any mavlink messages
-        self.poll_mavlink_messages()
-
-        # Send hearbeats at 1Hz
-        if (time.time() - self._last_heartbeat_sent_time) > 1.0 or self._received_first_hearbeat == False:
-            self.send_heartbeat()
-            self._last_heartbeat_sent_time = time.time()
-
-        # Update the current u_time for px4
         self._current_utime += int(dt * 1000000)
 
-        # Send sensor messages
-        self.send_sensor_msgs(self._current_utime)
+        try:
+            self.send_sensor_msgs(self._current_utime)
+        except Exception as e:
+            carb.log_warn(f"send_sensor_msgs failed: {e}")
 
-        # Send the GPS messages
-        self.send_gps_msgs(self._current_utime)
+        try:
+            self.send_gps_msgs(self._current_utime)
+        except Exception as e:
+            carb.log_warn(f"send_gps_msgs failed: {e}")
+
+        try:
+            self.send_ground_truth(self._current_utime)
+        except Exception as e:
+            carb.log_warn(f"send_ground_truth failed: {e}")
 
     def poll_mavlink_messages(self):
         """
@@ -695,11 +714,11 @@ class PX4MavlinkBackend(Backend):
                 self._sensor_data.abs_pressure,
                 self._sensor_data.diff_pressure,
                 self._sensor_data.pressure_alt,
-                self._sensor_data.altitude,
+                self._sensor_data.temperature,
                 fields_updated,
             )
-        except:
-            carb.log_warn("Could not send sensor data through mavlink")
+        except Exception as e:
+            carb.log_warn(f"Could not send sensor data through mavlink: {e}")
 
     def send_gps_msgs(self, time_usec: int):
         """
@@ -732,8 +751,8 @@ class PX4MavlinkBackend(Backend):
                 self._sensor_data.cog,
                 self._sensor_data.satellites_visible,
             )
-        except:
-            carb.log_warn("Could not send gps data through mavlink")
+        except Exception as e:
+            carb.log_warn(f"Could not send gps data through mavlink: {e}")
 
     def send_vision_msgs(self, time_usec: int):
         """
@@ -760,8 +779,8 @@ class PX4MavlinkBackend(Backend):
                 self._sensor_data.vision_yaw,
                 self._sensor_data.vision_covariance,
             )
-        except:
-            carb.log_warn("Could not send vision/mocap data through mavlink")
+        except Exception as e:
+            carb.log_warn(f"Could not send vision/mocap data through mavlink: {e}")
 
     def send_ground_truth(self, time_usec: int):
         """
@@ -771,8 +790,8 @@ class PX4MavlinkBackend(Backend):
             time_usec (int): The total time elapsed since the simulation started
         """
 
-        # Do not send vision/mocap data, if not new data was received
-        if not self._sensor_data.new_sim_state or self._sensor_data.sim_alt == 0:
+        # Only send once we have a valid state (GPS data has populated lat/lon/alt)
+        if not self._sensor_data.new_sim_state or self._sensor_data.sim_lat == 0:
             return
 
         self._sensor_data.new_sim_state = False
@@ -796,8 +815,8 @@ class PX4MavlinkBackend(Backend):
                 self._sensor_data.sim_acceleration[1],
                 self._sensor_data.sim_acceleration[2],
             )
-        except:
-            carb.log_warn("Could not send groundtruth through mavlink")
+        except Exception as e:
+            carb.log_warn(f"Could not send groundtruth through mavlink: {e}")
 
     def handle_control(self, time_usec, controls, mode, flags):
         """
