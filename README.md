@@ -1,7 +1,7 @@
 # Pegasus Simulator
 
-![IsaacSim 6.0](https://img.shields.io/badge/IsaacSim-6.0-brightgreen.svg)
-![PX4-Autopilot 1.14.3](https://img.shields.io/badge/PX4--Autopilot-1.14.3-brightgreen.svg)
+![IsaacSim 6.0](https://img.shields.io/badge/IsaacSim-6.0.0-brightgreen.svg)
+![PX4-Autopilot 1.16.2](https://img.shields.io/badge/PX4--Autopilot-1.16.2-brightgreen.svg)
 ![ArduPilot-Copter 4.4](https://img.shields.io/badge/ArduPilot--Copter-4.4.0-brightgreen.svg)
 ![Ubuntu 22.04](https://img.shields.io/badge/Ubuntu-22.04LTS-brightgreen.svg)
 [![](https://dcbadge.limes.pink/api/server/[INVITE](https://discord.gg/AjCxw2QUmt?style=flat))](https://discord.gg/AjCxw2QUmt)
@@ -14,6 +14,22 @@
 </p>
 
 Check the provided documentation [here](https://pegasussimulator.github.io/PegasusSimulator/) to discover how to install and use this framework.
+
+## Tested Configuration (this fork)
+
+This fork has been ported to and validated end-to-end (spawn → PX4 boot → EKF init → arm → takeoff) with:
+
+| Component | Version |
+|---|---|
+| NVIDIA Isaac Sim | **6.0.0** (imports use `isaacsim.*`; physics via `isaacsim.core.experimental.prims`) |
+| PX4-Autopilot | **v1.16.2** (SITL, TCP HIL link on port 4560 — the simulator is the `tcpin` server) |
+| Ubuntu | 22.04 LTS |
+| Python (Isaac bundled) | 3.12 |
+
+⚠️ Notes for PX4 v1.16+: the `PX4_SIM_PROTOCOL` environment variable is no longer used by
+PX4 — the HIL link is always TCP, so the default `connection_type` in
+`PX4MavlinkBackendConfig` must remain `tcpin`. QGroundControl connects automatically on
+UDP 14550 when running on the same machine.
 
 ## Latest Updates
 

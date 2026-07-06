@@ -41,3 +41,15 @@ _build
 build/
 install/
 log/
+# PX4 SITL runtime artifacts (written to repo root when PX4 auto-launches)
+/dataman
+/eeprom
+/frames
+
+# Environment-specific symlinks into a sibling PX4-Autopilot checkout
+/etc
+/test_data
+
+# Claude development artifacts
+CLAUDE.md
+README_ISAACSIM6_FIXES.md
