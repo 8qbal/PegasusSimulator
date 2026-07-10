@@ -33,7 +33,11 @@ from pegasus.simulator.logic.backends.backend import Backend
 import omni
 import omni.graph.core as og
 import omni.replicator.core as rep
-from isaacsim.ros2.bridge import read_camera_info
+try:
+    # Isaac Sim >= 6.0: read_camera_info moved to isaacsim.ros2.core
+    from isaacsim.ros2.core.impl.camera_info_utils import read_camera_info
+except ImportError:
+    from isaacsim.ros2.bridge import read_camera_info
 
 
 class ROS2Backend(Backend):
@@ -230,33 +234,38 @@ class ROS2Backend(Backend):
         accel.header.frame_id = "map"
 
         # Fill the position and attitude of the vehicle in ENU
-        pose.pose.position.x = state.position[0]
-        pose.pose.position.y = state.position[1]
-        pose.pose.position.z = state.position[2]
+        # NOTE: state fields are numpy arrays (often float32); rclpy's generated message
+        # setters strictly require a native Python float, so every component must be cast
+        # explicitly - otherwise publish() raises "The 'x' field must be of type 'float'"
+        # on every tick, which (since this loop has no per-backend isolation) silently
+        # aborts update_state() before any of these publishers ever fire.
+        pose.pose.position.x = float(state.position[0])
+        pose.pose.position.y = float(state.position[1])
+        pose.pose.position.z = float(state.position[2])
 
-        pose.pose.orientation.x = state.attitude[0]
-        pose.pose.orientation.y = state.attitude[1]
-        pose.pose.orientation.z = state.attitude[2]
-        pose.pose.orientation.w = state.attitude[3]
+        pose.pose.orientation.x = float(state.attitude[0])
+        pose.pose.orientation.y = float(state.attitude[1])
+        pose.pose.orientation.z = float(state.attitude[2])
+        pose.pose.orientation.w = float(state.attitude[3])
 
         # Fill the linear and angular velocities in the body frame of the vehicle
-        twist.twist.linear.x = state.linear_body_velocity[0]
-        twist.twist.linear.y = state.linear_body_velocity[1]
-        twist.twist.linear.z = state.linear_body_velocity[2]
+        twist.twist.linear.x = float(state.linear_body_velocity[0])
+        twist.twist.linear.y = float(state.linear_body_velocity[1])
+        twist.twist.linear.z = float(state.linear_body_velocity[2])
 
-        twist.twist.angular.x = state.angular_velocity[0]
-        twist.twist.angular.y = state.angular_velocity[1]
-        twist.twist.angular.z = state.angular_velocity[2]
+        twist.twist.angular.x = float(state.angular_velocity[0])
+        twist.twist.angular.y = float(state.angular_velocity[1])
+        twist.twist.angular.z = float(state.angular_velocity[2])
 
         # Fill the linear velocity of the vehicle in the inertial frame
-        twist_inertial.twist.linear.x = state.linear_velocity[0]
-        twist_inertial.twist.linear.y = state.linear_velocity[1]
-        twist_inertial.twist.linear.z = state.linear_velocity[2]
+        twist_inertial.twist.linear.x = float(state.linear_velocity[0])
+        twist_inertial.twist.linear.y = float(state.linear_velocity[1])
+        twist_inertial.twist.linear.z = float(state.linear_velocity[2])
 
         # Fill the linear acceleration in the inertial frame
-        accel.accel.linear.x = state.linear_acceleration[0]
-        accel.accel.linear.y = state.linear_acceleration[1]
-        accel.accel.linear.z = state.linear_acceleration[2]
+        accel.accel.linear.x = float(state.linear_acceleration[0])
+        accel.accel.linear.y = float(state.linear_acceleration[1])
+        accel.accel.linear.z = float(state.linear_acceleration[2])
 
         # Publish the messages containing the state of the vehicle
         self.pose_pub.publish(pose)
@@ -270,13 +279,13 @@ class ROS2Backend(Backend):
             t.header.stamp = pose.header.stamp
             t.header.frame_id = "map"
             t.child_frame_id = self._namespace + '_' + 'base_link'
-            t.transform.translation.x = state.position[0]
-            t.transform.translation.y = state.position[1]
-            t.transform.translation.z = state.position[2]
-            t.transform.rotation.x = state.attitude[0]
-            t.transform.rotation.y = state.attitude[1]
-            t.transform.rotation.z = state.attitude[2]
-            t.transform.rotation.w = state.attitude[3]
+            t.transform.translation.x = float(state.position[0])
+            t.transform.translation.y = float(state.position[1])
+            t.transform.translation.z = float(state.position[2])
+            t.transform.rotation.x = float(state.attitude[0])
+            t.transform.rotation.y = float(state.attitude[1])
+            t.transform.rotation.z = float(state.attitude[2])
+            t.transform.rotation.w = float(state.attitude[3])
             self.tf_broadcaster.sendTransform(t)
         
 
@@ -327,14 +336,14 @@ class ROS2Backend(Backend):
         msg.header.frame_id = self._namespace + '_' + "base_link_frd"
         
         # Update the angular velocity (NED + FRD)
-        msg.angular_velocity.x = data["angular_velocity"][0]
-        msg.angular_velocity.y = data["angular_velocity"][1]
-        msg.angular_velocity.z = data["angular_velocity"][2]
-        
+        msg.angular_velocity.x = float(data["angular_velocity"][0])
+        msg.angular_velocity.y = float(data["angular_velocity"][1])
+        msg.angular_velocity.z = float(data["angular_velocity"][2])
+
         # Update the linear acceleration (NED)
-        msg.linear_acceleration.x = data["linear_acceleration"][0]
-        msg.linear_acceleration.y = data["linear_acceleration"][1]
-        msg.linear_acceleration.z = data["linear_acceleration"][2]
+        msg.linear_acceleration.x = float(data["linear_acceleration"][0])
+        msg.linear_acceleration.y = float(data["linear_acceleration"][1])
+        msg.linear_acceleration.z = float(data["linear_acceleration"][2])
 
         # Publish the message with the current imu state
         self.imu_pub.publish(msg)
@@ -357,14 +366,14 @@ class ROS2Backend(Backend):
         msg.status = status_msg
 
         # Update the latitude, longitude and altitude
-        msg.latitude = data["latitude"]
-        msg.longitude = data["longitude"]
-        msg.altitude = data["altitude"]
+        msg.latitude = float(data["latitude"])
+        msg.longitude = float(data["longitude"])
+        msg.altitude = float(data["altitude"])
 
         # Update the velocity of the vehicle measured by the GPS in the inertial frame (NED)
-        msg_vel.twist.linear.x = data["velocity_north"]
-        msg_vel.twist.linear.y = data["velocity_east"]
-        msg_vel.twist.linear.z = data["velocity_down"]
+        msg_vel.twist.linear.x = float(data["velocity_north"])
+        msg_vel.twist.linear.y = float(data["velocity_east"])
+        msg_vel.twist.linear.z = float(data["velocity_down"])
 
         # Publish the message with the current GPS state
         self.gps_pub.publish(msg)
@@ -378,9 +387,9 @@ class ROS2Backend(Backend):
         msg.header.stamp = self.node.get_clock().now().to_msg()
         msg.header.frame_id = "base_link_frd"
 
-        msg.magnetic_field.x = data["magnetic_field"][0]
-        msg.magnetic_field.y = data["magnetic_field"][1]
-        msg.magnetic_field.z = data["magnetic_field"][2]
+        msg.magnetic_field.x = float(data["magnetic_field"][0])
+        msg.magnetic_field.y = float(data["magnetic_field"][1])
+        msg.magnetic_field.z = float(data["magnetic_field"][2])
 
         # Publish the message with the current magnetic data
         self.mag_pub.publish(msg)

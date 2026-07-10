@@ -96,6 +96,8 @@ class Vehicle(Robot):
 
         self._body_rigid_prim = None
         self._articulation = None
+        self._rigid_prims = {}
+        self._physics_callbacks_registered = False
 
         # Add this object for the world to track, so that if we clear the world, this object is deleted from memory and
         # as a consequence, from the VehicleManager as well
@@ -108,19 +110,6 @@ class Vehicle(Robot):
         # Variable that will hold the current state of the vehicle
         self._state = State()
 
-        # Add a callback to the physics engine to update the current state of the system
-        self._world.add_physics_callback(self._stage_prefix + "/state", self.update_state)
-
-        # Add the update method to the physics callback if the world was received
-        # so that we can apply forces and torques to the vehicle. Note, this method should        # be implemented in classes that inherit the vehicle object
-        self._world.add_physics_callback(self._stage_prefix + "/update", self.update)
-
-        # Set the flag that signals if the simulation is running or not
-        self._sim_running = False
-
-        # Add a callback to start/stop of the simulation once the play/stop button is hit
-        self._world.add_timeline_callback(self._stage_prefix + "/start_stop_sim", self.sim_start_stop)
-
         # --------------------------------------------------------------------
         # -------------------- Add sensors to the vehicle --------------------
         # --------------------------------------------------------------------
@@ -129,9 +118,14 @@ class Vehicle(Robot):
         for sensor in self._sensors:
             sensor.initialize(self, PegasusInterface().latitude, PegasusInterface().longitude, PegasusInterface().altitude)
 
-        # Add callbacks to the physics engine to update each sensor at every timestep
-        # and let the sensor decide depending on its internal update rate whether to generate new data
-        self._world.add_physics_callback(self._stage_prefix + "/Sensors", self.update_sensors)
+        # Set the flag that signals if the simulation is running or not
+        self._sim_running = False
+
+        # Add a callback to start/stop of the simulation once the play/stop button is hit.
+        # Physics callbacks (/state, /Sensors, /update, /mav_state) are registered
+        # in start() instead of __init__() so they fire only after the simulation
+        # manager has created its physics views and backends are fully initialized.
+        self._world.add_timeline_callback(self._stage_prefix + "/start_stop_sim", self.sim_start_stop)
 
         # --------------------------------------------------------------------
         # -------------------- Add the graphical sensors to the vehicle ------
@@ -161,9 +155,6 @@ class Vehicle(Robot):
         # Initialize the backends
         for backend in self._backends:
             backend.initialize(self)
-
-        # Add a callbacks for the
-        self._world.add_physics_callback(self._stage_prefix + "/mav_state", self.update_sim_state)
 
 
     def __del__(self):
@@ -201,6 +192,45 @@ class Vehicle(Robot):
     Operations
     """
 
+    def _register_physics_callbacks(self):
+        """Register physics callbacks for the vehicle.
+
+        These are registered in sim_start_stop (not __init__) so they fire only
+        after the simulation manager has initialized its physics views and all
+        backends are ready to receive data.
+        """
+        if self._physics_callbacks_registered:
+            return
+        self._world.add_physics_callback(self._stage_prefix + "/state", self._update_state_safe)
+        self._world.add_physics_callback(self._stage_prefix + "/Sensors", self._update_sensors_safe)
+        self._world.add_physics_callback(self._stage_prefix + "/update", self._update_safe)
+        self._world.add_physics_callback(self._stage_prefix + "/mav_state", self._update_sim_state_safe)
+        self._physics_callbacks_registered = True
+
+    def _update_state_safe(self, dt):
+        try:
+            self.update_state(dt)
+        except Exception as e:
+            carb.log_warn(f"[{self._stage_prefix}] update_state failed: {e}")
+
+    def _update_sensors_safe(self, dt):
+        try:
+            self.update_sensors(dt)
+        except Exception as e:
+            carb.log_warn(f"[{self._stage_prefix}] update_sensors failed: {e}")
+
+    def _update_safe(self, dt):
+        try:
+            self.update(dt)
+        except Exception as e:
+            carb.log_warn(f"[{self._stage_prefix}] update failed: {e}")
+
+    def _update_sim_state_safe(self, dt):
+        try:
+            self.update_sim_state(dt)
+        except Exception as e:
+            carb.log_warn(f"[{self._stage_prefix}] update_sim_state failed: {e}")
+
     def sim_start_stop(self, event):
         """
         Callback that is called every time there is a timeline event such as starting/stoping the simulation.
@@ -228,12 +258,19 @@ class Vehicle(Robot):
             # Invoke the start method of the vehicle (if it exists)
             self.start()
 
+            # Register physics callbacks AFTER all backends are initialized.
+            # By this point PX4 is already listening for HIL_SENSOR and the
+            # simulation manager has created its physics views.
+            self._register_physics_callbacks()
+
         if self._world.is_stopped() and self._sim_running == True:
             self._sim_running = False
+            self._physics_callbacks_registered = False
 
             # Reset the cached prims and articulation
             self._body_rigid_prim = None
             self._articulation = None
+            self._rigid_prims = {}
 
             # Stop the sensors
             for sensor in self._sensors:
@@ -249,46 +286,53 @@ class Vehicle(Robot):
 
             self.stop()
 
+    def _get_rigid_prim(self, body_part: str) -> RigidPrim:
+        """Get (and cache) the RigidPrim wrapper for one of the vehicle's rigid bodies (e.g. '/body', '/rotor0')."""
+        rigid_prim = self._rigid_prims.get(body_part)
+        if rigid_prim is None:
+            rigid_prim = RigidPrim(self._stage_prefix + body_part)
+            self._rigid_prims[body_part] = rigid_prim
+        return rigid_prim
+
     def apply_force(self, force, pos=[0.0, 0.0, 0.0], body_part="/body"):
-        prim_path = self._stage_prefix + body_part
-        prim = self._current_stage.GetPrimAtPath(prim_path)
-        if not prim.IsValid():
-            carb.log_warn(f"apply_force: prim {prim_path} invalid!")
-            return
+        """Apply a force (expressed in the local frame of the target rigid body) through the PhysX tensor API.
 
+        Args:
+            force (list): A 3-dimensional force vector, expressed in the body frame of 'body_part' [N].
+            pos (list): Position offset (in the body frame) at which to apply the force. Defaults to the body origin.
+            body_part (str): The relative prim path of the rigid body to actuate. Defaults to "/body".
+        """
         try:
-            rot = Rotation.from_quat(self._state.attitude)
-            world_force = rot.apply(np.array(force, dtype=np.float64))
+            rigid_prim = self._get_rigid_prim(body_part)
+            if not rigid_prim.is_physics_tensor_entity_valid():
+                return
 
-            force_attr = prim.GetAttribute("physxForce:force")
-            if not force_attr:
-                force_attr = prim.CreateAttribute("physxForce:force", Sdf.ValueTypeNames.Vector3f)
-            force_attr.Set(Gf.Vec3f(*world_force))
+            force_arr = np.asarray(force, dtype=np.float32).reshape(1, 3)
+            pos_arr = np.asarray(pos, dtype=np.float32).reshape(1, 3)
+
+            if np.any(pos_arr != 0.0):
+                rigid_prim.apply_forces_and_torques_at_pos(forces=force_arr, positions=pos_arr, local_frame=True)
+            else:
+                rigid_prim.apply_forces(force_arr, local_frame=True)
         except Exception as e:
-            carb.log_warn(f"apply_force EXCEPTION: {e}")
-
-        pos_arr = np.array(pos, dtype=np.float64)
-        if np.any(pos_arr != 0.0):
-            torque = np.cross(pos_arr, np.array(force, dtype=np.float64))
-            world_torque = rot.apply(torque)
-            torque_attr = prim.GetAttribute("physxTorque:torque")
-            if not torque_attr:
-                torque_attr = prim.CreateAttribute("physxTorque:torque", Sdf.ValueTypeNames.Vector3f)
-            torque_attr.Set(Gf.Vec3f(*world_torque))
+            carb.log_warn(f"apply_force on {self._stage_prefix + body_part} failed: {e}")
 
     def apply_torque(self, torque, body_part="/body"):
-        prim_path = self._stage_prefix + body_part
-        prim = self._current_stage.GetPrimAtPath(prim_path)
-        if not prim.IsValid():
-            return
+        """Apply a torque (expressed in the local frame of the target rigid body) through the PhysX tensor API.
 
-        rot = Rotation.from_quat(self._state.attitude)
-        world_torque = rot.apply(np.array(torque, dtype=np.float64))
+        Args:
+            torque (list): A 3-dimensional torque vector, expressed in the body frame of 'body_part' [Nm].
+            body_part (str): The relative prim path of the rigid body to actuate. Defaults to "/body".
+        """
+        try:
+            rigid_prim = self._get_rigid_prim(body_part)
+            if not rigid_prim.is_physics_tensor_entity_valid():
+                return
 
-        torque_attr = prim.GetAttribute("physxTorque:torque")
-        if not torque_attr:
-            torque_attr = prim.CreateAttribute("physxTorque:torque", Sdf.ValueTypeNames.Vector3f)
-        torque_attr.Set(Gf.Vec3f(*world_torque))
+            torque_arr = np.asarray(torque, dtype=np.float32).reshape(1, 3)
+            rigid_prim.apply_forces_and_torques_at_pos(torques=torque_arr, local_frame=True)
+        except Exception as e:
+            carb.log_warn(f"apply_torque on {self._stage_prefix + body_part} failed: {e}")
 
     def update_state(self, dt: float):
         """
@@ -343,6 +387,8 @@ class Vehicle(Robot):
     def start(self):
         """
         Method that should be implemented by the class that inherits the vehicle object.
+        Physics callbacks are registered in sim_start_stop (via _register_physics_callbacks)
+        after this method returns, ensuring backends are initialized before any callback fires.
         """
         pass
 
