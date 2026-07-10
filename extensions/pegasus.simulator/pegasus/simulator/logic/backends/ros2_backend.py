@@ -16,6 +16,8 @@ from std_msgs.msg import Float64
 from geometry_msgs.msg import TransformStamped
 from sensor_msgs.msg import Imu, MagneticField, NavSatFix, NavSatStatus
 from geometry_msgs.msg import PoseStamped, TwistStamped, AccelStamped
+from rosgraph_msgs.msg import Clock
+from builtin_interfaces.msg import Time
 
 # TF imports
 # Check if these libraries exist in the system
@@ -99,6 +101,13 @@ class ROS2Backend(Backend):
 
         self.node = rclpy.create_node("simulator_vehicle_" + str(vehicle_id))
 
+        # All outgoing headers are stamped with SIMULATION time, matching the RTX sensor
+        # writers (camera/lidar), which always stamp with sim time. Mixing wall-clock TF
+        # with sim-time scans breaks every downstream TF lookup (SLAM, rviz). A /clock
+        # publisher lets external ROS 2 nodes follow along with use_sim_time:=true.
+        self._timeline = omni.timeline.get_timeline_interface()
+        self._clock_pub = self.node.create_publisher(Clock, "/clock", 10)
+
         # Initialize the publishers and subscribers
         self.initialize_publishers(config)
         self.initialize_subscribers()
@@ -126,6 +135,14 @@ class ROS2Backend(Backend):
             self.tf_broadcaster = TransformBroadcaster(self.node)
     
     
+    def sim_time_msg(self):
+        """Current simulation time as a builtin_interfaces/Time (matches RTX sensor stamps)."""
+        t = float(self._timeline.get_current_time())
+        msg = Time()
+        msg.sec = int(t)
+        msg.nanosec = int((t - int(t)) * 1e9)
+        return msg
+
     def initialize_publishers(self, config: dict):
 
         # ----------------------------------------------------- 
@@ -176,7 +193,7 @@ class ROS2Backend(Backend):
 
         # Create the transformation from base_link FLU (ROS standard) to base_link FRD (standard in airborn and marine vehicles)
         t = TransformStamped()
-        t.header.stamp = self.node.get_clock().now().to_msg()
+        t.header.stamp = self.sim_time_msg()
         t.header.frame_id = self._namespace + '_' + 'base_link'
         t.child_frame_id = self._namespace + '_' + 'base_link_frd'
 
@@ -193,7 +210,7 @@ class ROS2Backend(Backend):
 
         # Create the transform from map, i.e inertial frame (ROS standard) to map_ned (standard in airborn or marine vehicles)
         t = TransformStamped()
-        t.header.stamp = self.node.get_clock().now().to_msg()
+        t.header.stamp = self.sim_time_msg()
         t.header.frame_id = "map"
         t.child_frame_id = "map_ned"
         
@@ -223,7 +240,7 @@ class ROS2Backend(Backend):
         accel = AccelStamped()
 
         # Update the header
-        pose.header.stamp = self.node.get_clock().now().to_msg()
+        pose.header.stamp = self.sim_time_msg()
         twist.header.stamp = pose.header.stamp
         twist_inertial.header.stamp = pose.header.stamp
         accel.header.stamp = pose.header.stamp
@@ -332,7 +349,7 @@ class ROS2Backend(Backend):
         msg = Imu()
 
         # Update the header
-        msg.header.stamp = self.node.get_clock().now().to_msg()
+        msg.header.stamp = self.sim_time_msg()
         msg.header.frame_id = self._namespace + '_' + "base_link_frd"
         
         # Update the angular velocity (NED + FRD)
@@ -354,7 +371,7 @@ class ROS2Backend(Backend):
         msg_vel = TwistStamped()
 
         # Update the headers
-        msg.header.stamp = self.node.get_clock().now().to_msg()
+        msg.header.stamp = self.sim_time_msg()
         msg.header.frame_id = "map_ned"
         msg_vel.header.stamp = msg.header.stamp
         msg_vel.header.frame_id = msg.header.frame_id
@@ -384,7 +401,7 @@ class ROS2Backend(Backend):
         msg = MagneticField()
 
         # Update the headers
-        msg.header.stamp = self.node.get_clock().now().to_msg()
+        msg.header.stamp = self.sim_time_msg()
         msg.header.frame_id = "base_link_frd"
 
         msg.magnetic_field.x = float(data["magnetic_field"][0])
@@ -520,6 +537,12 @@ class ROS2Backend(Backend):
         Method that when implemented, should be used to update the state of the backend and the information being sent/received
         from the communication interface. This method will be called by the simulation on every physics step
         """
+
+        # Publish the simulation clock so external ROS 2 nodes (SLAM, rviz) can run with
+        # use_sim_time:=true and agree with the sim-time stamps on sensors and TF.
+        clock_msg = Clock()
+        clock_msg.clock = self.sim_time_msg()
+        self._clock_pub.publish(clock_msg)
 
         # In this case, do nothing as we are sending messages as soon as new data arrives from the sensors and state
         # and updating the reference for the thrusters as soon as receiving from ROS2 topics

@@ -1,0 +1,46 @@
+slam_toolbox:
+  ros__parameters:
+    # Plugin params
+    solver_plugin: solver_plugins::CeresSolver
+    ceres_linear_solver: SPARSE_NORMAL_CHOLESKY
+    ceres_preconditioner: SCHUR_JACOBI
+    ceres_trust_strategy: LEVENBERG_MARQUARDT
+    ceres_dogleg_type: TRADITIONAL_DOGLEG
+    ceres_loss_function: None
+
+    # Frames:
+    # - The Pegasus ROS2 backend publishes ground-truth "map" -> "v1__base_link".
+    #   We treat that ground-truth frame as the *odometry* frame for SLAM (a perfect
+    #   odom prior). slam_toolbox then estimates "slam_map" -> "map" drift correction
+    #   and publishes the drone pose in "slam_map" on /pose - that is what gets fed
+    #   back to PX4 as external vision.
+    odom_frame: map
+    map_frame: slam_map
+    base_frame: v1__base_link
+    scan_topic: /v1_0/rplidar_c1/laserscan
+    use_scan_matching: true
+    mode: mapping
+
+    # Timing / rates (lidar publishes at ~10 Hz)
+    transform_publish_period: 0.05
+    map_update_interval: 2.0
+    minimum_time_interval: 0.2
+    transform_timeout: 0.5
+    tf_buffer_duration: 30.0
+
+    # Example_Rotary_2D reaches far; clamp to something RPLIDAR-C1-like (12 m)
+    max_laser_range: 12.0
+    resolution: 0.05
+
+    # Scan matcher tuning (defaults are fine for a first bring-up)
+    minimum_travel_distance: 0.2
+    minimum_travel_heading: 0.2
+    scan_buffer_size: 10
+    scan_buffer_maximum_scan_distance: 12.0
+    do_loop_closing: true
+    loop_search_maximum_distance: 5.0
+
+    debug_logging: false
+    throttle_scans: 1
+    stack_size_to_use: 40000000
+    enable_interactive_mode: false

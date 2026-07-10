@@ -592,6 +592,13 @@ class PX4MavlinkBackend(Backend):
                 self.send_heartbeat()
             except Exception as e:
                 carb.log_warn(f"Heartbeat send failed: {e}")
+                # Close before dropping the reference: a tcpin connection holds the listening
+                # socket on port 4560, and leaking it makes every reconnect attempt fail with
+                # "[Errno 98] Address already in use" until the whole process is restarted.
+                try:
+                    self._connection.close()
+                except Exception:
+                    pass
                 self._connection = None
                 return
             self._last_heartbeat_sent_time = time.time()
