@@ -536,8 +536,9 @@ class PX4MavlinkBackend(Backend):
         # Set the flag so that we are no longer running the mavlink interface
         self._is_running = False
 
-        # Close the mavlink connection
-        self._connection.close()
+        # Close the mavlink connection (may already be None if a send failure reset it)
+        if self._connection is not None:
+            self._connection.close()
         self._connection = None
 
         # Close the PX4 if it was running

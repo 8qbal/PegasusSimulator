@@ -30,7 +30,8 @@ ROBOTS_ASSETS = ASSET_PATH + "/Robots"
 # Define the built in robots of the extension
 ROBOTS = {
     "Iris": ROBOTS_ASSETS + "/Iris/iris.usd",
-    "Pegasus": ROBOTS_ASSETS + "/Pegasus/pegasus.usd"
+    "Pegasus": ROBOTS_ASSETS + "/Pegasus/pegasus.usd",
+    "V1": ROBOTS_ASSETS + "/V1/v1.usd"
 } #, "Flying Cube": ROBOTS_ASSETS + "/iris_cube.usda"}
 
 # Setup the default simulation environments path
@@ -110,7 +111,8 @@ DEFAULT_WORLD_SETTINGS = WORLD_SETTINGS['px4']
 # Define where the thumbnail of the vehicle is located
 THUMBNAILS = {
     "Iris": ROBOTS_ASSETS + "/Iris/iris_thumbnail.png",
-    "Pegasus": ROBOTS_ASSETS + "/Pegasus/pegasus_thumbnail.png"
+    "Pegasus": ROBOTS_ASSETS + "/Pegasus/pegasus_thumbnail.png",
+    "V1": ROBOTS_ASSETS + "/Iris/iris_thumbnail.png"
 }
 
 # Define where the thumbail of the world is located

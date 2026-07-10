@@ -472,11 +472,39 @@ class ROS2Backend(Backend):
         # Add the writer to the dictionary
         self.graphical_sensors_writers[data["lidar_name"]] = [writer]
 
-        # Create the writer for publishing a laser scan message along with the point cloud
-        writer = rep.writers.get("RtxLidarROS2PublishLaserScan")
-        writer.initialize(nodeNamespace=self._namespace + str(self._id), topicName=data["lidar_name"] + "/laserscan", frameId=data["lidar_name"])
-        writer.attach([render_prod_path])
-        self.graphical_sensors_writers[data["lidar_name"]].append(writer)
+        # Create the writer for publishing a laser scan message along with the point cloud.
+        # The LaserScan writer (unlike PointCloud) needs explicit scan geometry - FOV,
+        # angular resolution, range, rotation rate - that OgnROS2RtxLidarHelper normally
+        # derives from the lidar prim when driven through an OmniGraph. Since we attach the
+        # writer directly, that metadata must be read from the prim and passed in ourselves;
+        # otherwise every field defaults to 0.0 and the writer rejects every frame with
+        # "horizontalFov (0.000000) and horizontalResolution (0.000000) must be positive"
+        # (spamming the log and stalling the SDG pipeline for this render product entirely -
+        # so the sibling PointCloud writer above silently stopped producing output too).
+        prim = omni.usd.get_context().get_stage().GetPrimAtPath(data["stage_prim_path"])
+        rotation_rate = float(prim.GetAttribute("omni:sensor:Core:scanRateBaseHz").Get() or 0)
+        near_range = float(prim.GetAttribute("omni:sensor:Core:nearRangeM").Get() or 0)
+        far_range = float(prim.GetAttribute("omni:sensor:Core:farRangeM").Get() or 0)
+        firing_rate = int(prim.GetAttribute("omni:sensor:Core:patternFiringRateHz").Get() or 0)
+        if rotation_rate > 0 and firing_rate > 0:
+            writer = rep.writers.get("RtxLidarROS2PublishLaserScan")
+            writer.initialize(
+                nodeNamespace=self._namespace + str(self._id),
+                topicName=data["lidar_name"] + "/laserscan",
+                frameId=data["lidar_name"],
+                horizontalFov=360.0,
+                horizontalResolution=360.0 * rotation_rate / firing_rate,
+                depthRange=[near_range, far_range],
+                rotationRate=rotation_rate,
+                azimuthRange=[-180.0, 180.0],
+            )
+            writer.attach([render_prod_path])
+            self.graphical_sensors_writers[data["lidar_name"]].append(writer)
+        else:
+            carb.log_warn(
+                f"Lidar '{data['lidar_name']}': skipping LaserScan writer - scanRateBaseHz or "
+                "patternFiringRateHz is 0 on the lidar prim (non-rotary config?). PointCloud2 still publishes."
+            )
 
     def input_reference(self):
         """
