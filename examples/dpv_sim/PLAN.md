@@ -276,19 +276,131 @@ to the bringup for this — vanilla PX4 consumes `/fmu/in/trajectory_setpoint` e
 which `/fmu/in/*` topics the relays use and that they exist in vanilla dds_topics.yaml
 before expecting offboard motion).
 
-## 7. Phase 3 — cameras / vision corrector / QR (exploratory; separate session)
+## 7. Phase 3 — cameras / vision corrector / QR
 
-- Isaac already publishes `/v1_0/zed2i/*`; remap/rename to the contract
-  (`/zed/image_raw`, `/zed/depth`, `/zed/points`) the same way as the lidar (writer config)
-  or via `topic_tools relay`.
-- The REAL vision corrector consumes ZED VIO (`/zed/zed_node/odom_zed_to_fcu`) from
-  zed_wrapper, which requires the ZED SDK; zed_wrapper supports `sim_mode` +
-  `sim_address 127.0.0.1` — the ZED SDK's simulation streaming works with Isaac Sim via the
-  Stereolabs Isaac extension. Investigate: ZED SDK installed? Stereolabs Isaac Sim
-  extension available for Isaac 6.0? If not, vision corrector stays off (gz sim also ran
-  without it — `CMD_VISION` empty by default).
-- QR pipeline (`qr` component) needs Sony camera topics + QR assets in the world — needs a
-  separate Isaac-side world-content task (QR textures on cargo). Park it.
+### 7.1 Ground-truth (verified on this machine)
+
+| Thing | Status |
+|---|---|
+| ZED SDK | **Installed** at `/usr/local/zed/` (libsl_zed.so, ZED_Explorer, ZED_Diagnostic) |
+| zed-msgs (Python) | **Installed** v5.2.1 |
+| `ros-humble-zed-msgs` | **Installed** |
+| Stereolabs Isaac Sim extension | **NOT FOUND** — no `stereolabs`/`zed` extension in `/home/web-scientia/isaacsim/exts/` |
+| Isaac ZED camera output | Publishes `/v1_0/zed2i/color/image_raw`, `/v1_0/zed2i/depth`, `/v1_0/zed2i/color/camera_info` |
+| SVI (SIYI camera) | Not on V1 vehicle; Isaac has no SIYI sensor |
+
+**Critical consequence:** Without the Stereolabs Isaac extension, `zed_wrapper` cannot run in
+`sim_mode` (it uses the ZED SDK's streaming API which requires the extension to hook into
+Isaac's render pipeline). The ZED VIO odometry (`/zed/zed_node/odom_zed_to_fcu`) that the
+vision corrector consumes cannot come from the real zed_wrapper.
+
+### 7.2 Camera topic remapping (3.1)
+
+Same pattern as the lidar override in Phase 1. Extend `MonocularCamera` + `add_monocular_camera_writter`
+to accept optional topic/frame overrides from camera config.
+
+**7.2.1 `monocular_camera.py`** — pass through `color_topic`, `depth_topic`, `camera_info_topic`, `camera_frame_id`:
+
+```python
+# In __init__, add:
+self._color_topic = config.get("color_topic", None)
+self._depth_topic = config.get("depth_topic", None)
+self._camera_info_topic = config.get("camera_info_topic", None)
+self._camera_frame_id = config.get("camera_frame_id", None)
+
+# In update(), add to self._state:
+self._state["color_topic"] = self._color_topic
+self._state["depth_topic"] = self._depth_topic
+self._state["camera_info_topic"] = self._camera_info_topic
+self._state["camera_frame_id"] = self._camera_frame_id
+```
+
+**7.2.2 `ros2_backend.py`** — in `add_monocular_camera_writter`, honor overrides (same namespace logic as lidar: absolute topic → empty namespace):
+
+```python
+# Resolve topic overrides
+color_override = data.get("color_topic")
+depth_override = data.get("depth_topic")
+info_override = data.get("camera_info_topic")
+frame_id = data.get("camera_frame_id", data["camera_name"])
+
+if color_override and color_override.startswith("/"):
+    ns, color_topic = "", color_override[1:]
+elif color_override:
+    ns, color_topic = self._namespace + str(self._id), color_override
+else:
+    ns, color_topic = self._namespace + str(self._id), data["camera_name"] + "/color/image_raw"
+
+# Same pattern for depth_topic, camera_info_topic...
+# Use `ns` and resolved topics in writer.initialize() calls.
+# Set frameId=frame_id in all three writers.
+```
+
+**7.2.3 `v1.py`** — ZED camera config (no SIYI on V1):
+
+```python
+MonocularCamera("zed2i", config={
+    "position": [0.355, 0.0, 0.0],
+    "resolution": (1920, 1200),
+    "frequency": 30,
+    "intrinsics": [[777.0, 0.0, 960.0], [0.0, 777.0, 600.0], [0.0, 0.0, 1.0]],
+    "depth": True,
+    "color_topic": "/zed/image_raw",
+    "depth_topic": "/zed/depth",
+    "camera_info_topic": "/zed/color/camera_info",
+    "camera_frame_id": "zed2i_camera_link",
+}),
+```
+
+Note: Isaac publishes `/v1_0/zed2i/depth` as a depth image but can produce point clouds
+via the `DistanceToImagePlane` writer (`depth=True` in camera config already enables this).
+The `/zed/points` topic from the Gazebo contract is a PointCloud2 — the existing
+`add_monocular_camera_writter` already has a depth writer; we may need to add a
+PointCloud writer as well.
+
+### 7.3 Vision corrector (3.2)
+
+The real vision corrector consumes:
+- `/zed/zed_node/odom_zed_to_fcu` (ZED VIO odometry — nav_msgs/Odometry, produced by zed_wrapper)
+- Camera images for beam detection
+
+**Problem:** zed_wrapper's `sim_mode` needs the Stereolabs Isaac extension to stream
+simulated stereo images from Isaac → ZED SDK → zed_wrapper → VIO. Without the extension:
+
+**Option A (matching gz sim behavior):** Skip the vision corrector entirely — gz sim
+runs with `CMD_VISION` empty and the corrector stays off. Cartographer's laser-based
+localization handles odometry; the vision pipeline is only for QR/beam pose refinement.
+
+**Option B (fake ZED VIO):** Create `zed_vio_stub.py` that converts
+`/cartographer/laser_odom_at_fcu` → `/zed/zed_node/odom_zed_to_fcu`, mirroring the
+frame conventions (FLU → NED etc.). This lets the vision corrector "see" odometry,
+but the beam inference still needs real camera images for pillar detection.
+
+**Recommendation:** Implement Option A first (skip corrector, just remap camera topics
+for visualization/rviz). Option B is a separate investigation if vision-behavior is
+specifically needed.
+
+### 7.4 Isaac ZED warmup
+
+Camera topics (`/v1_0/zed2i/*`) appear ~100 rendered frames after sim play starts
+(§8.7). Any bringup launch that includes vision nodes must account for this delay —
+use TimerActions with sufficient stagger.
+
+### 7.5 QR pipeline (3.3) — parked
+
+Needs Sony camera (SIYI) — not on V1, no Isaac SIYI sensor — plus QR texture assets
+on cargo in the world model. This is a separate Isaac content-authoring task. Document
+in PLAN but do not implement in this phase.
+
+### 7.6 Phase 3 deliverables inventory
+
+| File | Action |
+|---|---|
+| `extensions/.../monocular_camera.py` | add color_topic/depth_topic/camera_info_topic/camera_frame_id config passthrough |
+| `extensions/.../ros2_backend.py` | honor camera topic/frame overrides in `add_monocular_camera_writter` |
+| `extensions/.../v1.py` | ZED camera config → `/zed/image_raw`, `/zed/depth`, etc. |
+| `examples/dpv_sim/zed_vio_stub.py` | NEW (optional) — cartographer odom → ZED VIO relay for vision corrector |
+| `examples/dpv_sim/isaac_nav_bringup_phase3.launch.py` | NEW — Phase 2 + camera bringup + vision corrector (optional) |
 
 ---
 

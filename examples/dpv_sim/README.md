@@ -115,3 +115,43 @@ ros2 topic hz /warehouse_auto_mission/mission_state
 but not strictly required. Missing packages `warehouse_edt_mapping` /
 `warehouse_obstacle_avoidance` are skipped — if the mission state machine blocks
 on their topics, report the error.
+
+## Phase 3 — Cameras + Vision Corrector
+
+Camera topics are remapped via v1.py config — Isaac now publishes to the Gazebo
+contract topics regardless of which launch is used:
+
+| Isaac writer | Topic |
+|---|---|
+| ZED color | `/zed/image_raw` |
+| ZED depth | `/zed/depth` |
+| ZED camera info | `/zed/color/camera_info` |
+| ZED frame ID | `zed2i_camera_link` |
+
+### Vision corrector (experimental, off by default)
+
+The vision corrector normally needs ZED VIO from zed_wrapper, which requires the
+Stereolabs Isaac Sim extension (NOT installed). Two options:
+
+**Option A (default):** Skip it — matches Gazebo sim behavior (`CMD_VISION` empty).
+
+**Option B:** Use the ZED VIO stub that relays cartographer odom into the ZED VIO
+topic, then launch the vision corrector:
+
+```bash
+ros2 launch ~/PegasusSimulator/examples/dpv_sim/isaac_nav_bringup_phase3.launch.py \
+  launch_vision:=true
+```
+
+This adds (at +12 s): `zed_vio_stub` (cartographer odom → `/zed/zed_node/odom_zed_to_fcu`)
+then `warehouse_pose_corrector_vision_based`.
+
+### Verify Phase 3
+
+```bash
+ros2 topic hz /zed/image_raw          # ZED color images
+ros2 topic hz /zed/depth              # ZED depth images
+ros2 topic hz /zed/color/camera_info  # Camera intrinsics
+# If launch_vision:=true:
+ros2 topic hz /zed/zed_node/odom_zed_to_fcu  # VIO stub relay
+```

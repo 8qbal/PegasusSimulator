@@ -423,9 +423,28 @@ class ROS2Backend(Backend):
         # List all the available writers: print(rep.writers.WriterRegistry._writers)
         render_prod_path = data["camera"]._render_product_path
 
+        # Honour optional topic/frame overrides from camera config (used to
+        # publish to absolute topics like /zed/image_raw for the Gazebo contract).
+        color_override = data.get("color_topic")
+        depth_override = data.get("depth_topic")
+        info_override = data.get("camera_info_topic")
+        frame_id = data.get("camera_frame_id") or data["camera_name"]
+
+        def _resolve(ns_default, topic_default, override):
+            if override and override.startswith("/"):
+                return "", override[1:]
+            if override:
+                return ns_default, override
+            return ns_default, topic_default
+
+        default_ns = self._namespace + str(self._id)
+        ns, color_topic = _resolve(default_ns, data["camera_name"] + "/color/image_raw", color_override)
+        depth_ns, depth_topic = _resolve(default_ns, data["camera_name"] + "/depth", depth_override)
+        info_ns, info_topic = _resolve(default_ns, data["camera_name"] + "/color/camera_info", info_override)
+
         # Create the writer for the rgb camera
         writer = rep.writers.get("LdrColorSDROS2PublishImage")
-        writer.initialize(nodeNamespace=self._namespace + str(self._id), topicName=data["camera_name"] + "/color/image_raw", frameId=data["camera_name"], queueSize=1)
+        writer.initialize(nodeNamespace=ns, topicName=color_topic, frameId=frame_id, queueSize=1)
         writer.attach([render_prod_path])
 
         # Add the writer to the dictionary
@@ -436,7 +455,7 @@ class ROS2Backend(Backend):
 
             # Create the writer for the depth camera
             writer_depth = rep.writers.get("DistanceToImagePlaneSDROS2PublishImage")
-            writer_depth.initialize(nodeNamespace=self._namespace + str(self._id), topicName=data["camera_name"] + "/depth", frameId=data["camera_name"], queueSize=1)
+            writer_depth.initialize(nodeNamespace=depth_ns, topicName=depth_topic, frameId=frame_id, queueSize=1)
             writer_depth.attach([render_prod_path])
 
             # Add the writer to the dictionary
@@ -446,9 +465,9 @@ class ROS2Backend(Backend):
         writer_info = rep.writers.get("ROS2PublishCameraInfo")
         camera_info, _ = read_camera_info(render_product_path=render_prod_path)
         writer_info.initialize(
-            nodeNamespace=self._namespace + str(self._id), 
-            topicName=data["camera_name"] + "/color/camera_info", 
-            frameId=data["camera_name"], 
+            nodeNamespace=info_ns,
+            topicName=info_topic,
+            frameId=frame_id,
             queueSize=1,
             width=camera_info.width,
             height=camera_info.height,

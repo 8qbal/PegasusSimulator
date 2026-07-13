@@ -62,6 +62,10 @@ class V1Config(MultirotorConfig):
                 "frequency": 30,
                 "intrinsics": [[777.0, 0.0, 960.0], [0.0, 777.0, 600.0], [0.0, 0.0, 1.0]],
                 "depth": True,
+                "color_topic": "/zed/image_raw",
+                "depth_topic": "/zed/depth",
+                "camera_info_topic": "/zed/color/camera_info",
+                "camera_frame_id": "zed2i_camera_link",
             }),
             Lidar("rplidar_c1", config={
                 "position": [0.0, 0.0, 0.135],

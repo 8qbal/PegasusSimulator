@@ -62,6 +62,10 @@ class MonocularCamera(GraphicalSensor):
         self._frequency = config.get("frequency", 30)
         self._intrinsics = config.get("intrinsics", None)
         self._distortion_coefficients = config.get("distortion_coefficients", None)
+        self._color_topic = config.get("color_topic", None)
+        self._depth_topic = config.get("depth_topic", None)
+        self._camera_info_topic = config.get("camera_info_topic", None)
+        self._camera_frame_id = config.get("camera_frame_id", None)
 
         # Set the values for the intrinsics if provided
         if self._intrinsics is not None:
@@ -166,6 +170,10 @@ class MonocularCamera(GraphicalSensor):
             self._state["frequency"] = self._frequency
             self._state["camera"] = self._camera
             self._state["intrinsics"] = self._intrinsics
+            self._state["color_topic"] = self._color_topic
+            self._state["depth_topic"] = self._depth_topic
+            self._state["camera_info_topic"] = self._camera_info_topic
+            self._state["camera_frame_id"] = self._camera_frame_id
 
             if self._depth:
                 self._state["depth"] = True
