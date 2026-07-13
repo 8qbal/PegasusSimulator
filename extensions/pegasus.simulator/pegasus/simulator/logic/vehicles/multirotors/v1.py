@@ -65,14 +65,11 @@ class V1Config(MultirotorConfig):
             }),
             Lidar("rplidar_c1", config={
                 "position": [0.0, 0.0, 0.135],
-                # RPLIDAR_S2E (the closest bundled named profile to the real RPLIDAR C1) produces
-                # zero output in this Isaac Sim build - confirmed via a targeted self-contained
-                # repro: PointCloud2 and LaserScan both stay at 0 messages indefinitely with
-                # RPLIDAR_S2E, while Example_Rotary_2D (same 2D rotary sensor class, generic
-                # profile) reliably publishes both. Using the generic profile as the stand-in.
                 "sensor_configuration": "Example_Rotary_2D",
                 "frequency": 10.0,
                 "show_render": False,
+                "scan_topic": "/scan",
+                "scan_frame_id": "laser_link",
             }),
         ]
 

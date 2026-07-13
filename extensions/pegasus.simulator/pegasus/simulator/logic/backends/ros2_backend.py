@@ -481,9 +481,25 @@ class ROS2Backend(Backend):
         # List all the available writers: print(rep.writers.WriterRegistry._writers)
         render_prod_path = rep.create.render_product(data["stage_prim_path"], [1, 1], name=data["lidar_name"])
 
+        # Honour optional topic/frame overrides from the lidar sensor config (used to
+        # publish to absolute topics like /scan with frame laser_link for Cartographer).
+        scan_topic = data.get("scan_topic")
+        scan_frame = data.get("scan_frame_id")
+        frame_id = scan_frame if scan_frame else data["lidar_name"]
+
+        if scan_topic and scan_topic.startswith("/"):
+            ls_namespace = ""
+            ls_topic = scan_topic[1:]
+        elif scan_topic:
+            ls_namespace = self._namespace + str(self._id)
+            ls_topic = scan_topic
+        else:
+            ls_namespace = self._namespace + str(self._id)
+            ls_topic = data["lidar_name"] + "/laserscan"
+
         # Create the writer for the lidar
         writer = rep.writers.get("RtxLidarROS2PublishPointCloud")
-        writer.initialize(nodeNamespace=self._namespace + str(self._id), topicName=data["lidar_name"] + "/pointcloud", frameId=data["lidar_name"])
+        writer.initialize(nodeNamespace=self._namespace + str(self._id), topicName=data["lidar_name"] + "/pointcloud", frameId=frame_id)
         writer.attach([render_prod_path])
 
         # Add the writer to the dictionary
@@ -506,9 +522,9 @@ class ROS2Backend(Backend):
         if rotation_rate > 0 and firing_rate > 0:
             writer = rep.writers.get("RtxLidarROS2PublishLaserScan")
             writer.initialize(
-                nodeNamespace=self._namespace + str(self._id),
-                topicName=data["lidar_name"] + "/laserscan",
-                frameId=data["lidar_name"],
+                nodeNamespace=ls_namespace,
+                topicName=ls_topic,
+                frameId=frame_id,
                 horizontalFov=360.0,
                 horizontalResolution=360.0 * rotation_rate / firing_rate,
                 depthRange=[near_range, far_range],

@@ -45,6 +45,8 @@ class Lidar(GraphicalSensor):
         self._orientation = Rotation.from_euler("ZYX", config.get("orientation", np.array([0.0, 0.0, 0.0])), degrees=True).as_quat()
         self._sensor_configuration = config.get("sensor_configuration", "Example_Rotary")
         self._show_render = config.get("show_render", False)
+        self._scan_topic = config.get("scan_topic", None)
+        self._scan_frame_id = config.get("scan_frame_id", None)
 
         self._sensor = None
 
@@ -97,7 +99,10 @@ class Lidar(GraphicalSensor):
             (dict) A dictionary containing the current state of the sensor (the data produced by the sensor)
         """
 
-        # Just return the prim path and the name of the lidar
-        self._state = {"lidar_name": self._lidar_name, "stage_prim_path": self._stage_prim_path}
-
+        self._state = {
+            "lidar_name": self._lidar_name,
+            "stage_prim_path": self._stage_prim_path,
+            "scan_topic": self._scan_topic,
+            "scan_frame_id": self._scan_frame_id,
+        }
         return self._state
