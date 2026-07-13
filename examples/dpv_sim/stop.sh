@@ -14,6 +14,8 @@ pkill -9 -f "px4_ros2_bridge" 2>/dev/null || true
 pkill -9 -f "warehouse_" 2>/dev/null || true
 pkill -9 -f "path_planner" 2>/dev/null || true
 pkill -9 -f "trajectory_generator" 2>/dev/null || true
+pkill -9 -f "QGroundControl" 2>/dev/null || true
+pkill -9 -f "qgroundcontrol" 2>/dev/null || true
 
 sleep 1
 

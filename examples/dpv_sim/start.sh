@@ -16,6 +16,7 @@ SESSION="dpv-sim"
 REPO="$HOME/PegasusSimulator"
 DPV_INSTALL="$REPO/extensions/dpv-install"
 PX4_HOME="$HOME/PX4-Autopilot"
+QGC="$HOME/Downloads/QGroundControl-x86_64.AppImage"
 
 case "$PHASE" in
     1) BRINGUP="$REPO/examples/dpv_sim/isaac_nav_bringup.launch.py" ;;
@@ -51,6 +52,16 @@ tmux send-keys -t "$SESSION:2" \
 tmux new-window -t "$SESSION" -n status
 tmux send-keys -t "$SESSION:3" \
     "source /opt/ros/humble/setup.bash && source $DPV_INSTALL/setup.bash && echo '=== Status Commands ===' && echo '' && echo 'ros2 topic hz /scan' && echo 'ros2 topic hz /fmu/in/vehicle_visual_odometry' && echo 'ros2 topic hz /cartographer/odom' && echo 'ros2 topic hz /zed/image_raw' && echo '' && echo '# Set EKF2 params (run once, PX4 must be running):' && echo 'python3 $REPO/examples/dpv_sim/set_px4_gps_denied_params_onboard.py'" Enter
+
+# --- Window 4: QGroundControl (requires AppImage) ---
+tmux new-window -t "$SESSION" -n qgc
+if [ -x "$QGC" ]; then
+    tmux send-keys -t "$SESSION:4" \
+        "echo '=== QGroundControl ===' && sleep 5 && $QGC" Enter
+else
+    tmux send-keys -t "$SESSION:4" \
+        "echo 'QGroundControl AppImage not found at $QGC'" Enter
+fi
 
 # Select the Isaac window (it's the first to start)
 tmux select-window -t "$SESSION:1"
