@@ -3,8 +3,9 @@
 # | Description: Launches the system-side half of the V1 GPS-denied SLAM pipeline:
 # |   1. MicroXRCEAgent           (PX4 uXRCE-DDS <-> ROS 2, udp 8888)
 # |   2. static TF                v1__base_link -> rplidar_c1 (lidar mount, z=0.135)
-# |   3. slam_toolbox             (async online mapping on /v1_0/rplidar_c1/laserscan)
-# |   4. px4_vision_bridge        (/pose -> /fmu/in/vehicle_visual_odometry)
+# |   3. px4_odom_tf_bridge       (PX4 odometry -> TF odom -> v1__base_link, SLAM prior)
+# |   4. slam_toolbox             (async online mapping on /v1_0/rplidar_c1/laserscan)
+# |   5. px4_vision_bridge        (/pose -> /fmu/in/vehicle_visual_odometry)
 # |
 # | Start the simulator FIRST in another terminal:
 # |   isaac_run examples/12_px4_v1_vehicle.py
@@ -34,25 +35,29 @@ cleanup() {
 }
 trap cleanup INT TERM
 
-echo "[1/4] MicroXRCEAgent (udp 8888) -> $LOG_DIR/xrce_agent.log"
+echo "[1/5] MicroXRCEAgent (udp 8888) -> $LOG_DIR/xrce_agent.log"
 MicroXRCEAgent udp4 -p 8888 > "$LOG_DIR/xrce_agent.log" 2>&1 &
 PIDS+=($!)
 
-echo "[2/4] static TF v1__base_link -> rplidar_c1 (0, 0, 0.135)"
+echo "[2/5] static TF v1__base_link -> rplidar_c1 (0, 0, 0.135)"
 ros2 run tf2_ros static_transform_publisher \
     --x 0 --y 0 --z 0.135 --roll 0 --pitch 0 --yaw 0 \
     --frame-id v1__base_link --child-frame-id rplidar_c1 \
     --ros-args -p use_sim_time:=true > "$LOG_DIR/static_tf.log" 2>&1 &
 PIDS+=($!)
 
-echo "[3/4] slam_toolbox (async online, sim time) -> $LOG_DIR/slam_toolbox.log"
+echo "[3/5] px4_odom_tf_bridge (PX4 odom -> odom->v1__base_link TF) -> $LOG_DIR/odom_tf_bridge.log"
+python3 "$SCRIPT_DIR/px4_odom_tf_bridge.py" --ros-args -p use_sim_time:=true > "$LOG_DIR/odom_tf_bridge.log" 2>&1 &
+PIDS+=($!)
+
+echo "[4/5] slam_toolbox (async online, sim time) -> $LOG_DIR/slam_toolbox.log"
 ros2 run slam_toolbox async_slam_toolbox_node \
     --ros-args --params-file "$SCRIPT_DIR/slam_toolbox_params.yaml" \
     -p use_sim_time:=true > "$LOG_DIR/slam_toolbox.log" 2>&1 &
 PIDS+=($!)
 
-echo "[4/4] px4_vision_bridge -> $LOG_DIR/vision_bridge.log"
-python3 "$SCRIPT_DIR/px4_vision_bridge.py" > "$LOG_DIR/vision_bridge.log" 2>&1 &
+echo "[5/5] px4_vision_bridge -> $LOG_DIR/vision_bridge.log"
+python3 "$SCRIPT_DIR/px4_vision_bridge.py" --ros-args -p use_sim_time:=true > "$LOG_DIR/vision_bridge.log" 2>&1 &
 PIDS+=($!)
 
 sleep 2

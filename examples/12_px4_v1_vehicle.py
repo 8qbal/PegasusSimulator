@@ -72,7 +72,13 @@ class PegasusApp:
             "px4_dir": self.pg.px4_path,
             "px4_vehicle_model": self.pg.px4_default_airframe # CHANGE this line to 'iris' if using PX4 version bellow v1.14
         })
-        config_multirotor.backends = [PX4MavlinkBackend(mavlink_config)]
+        # Replace ONLY the default PX4 backend that V1Config built (index 0) with this
+        # properly-configured one (px4_dir / airframe / autolaunch). Crucially, keep the
+        # ROS2Backend that V1Config created at index 1 - it is what publishes the ZED /
+        # RPLIDAR data and vehicle state for the SLAM pipeline. Reassigning the whole list
+        # (backends = [PX4]) drops the ROS2Backend, so the vehicle never publishes any
+        # sensor/lidar/camera topics and SLAM gets no data.
+        config_multirotor.backends[0] = PX4MavlinkBackend(mavlink_config)
 
         Multirotor(
             "/World/quadrotor",

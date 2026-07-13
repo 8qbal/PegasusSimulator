@@ -8,13 +8,13 @@ slam_toolbox:
     ceres_dogleg_type: TRADITIONAL_DOGLEG
     ceres_loss_function: None
 
-    # Frames:
-    # - The Pegasus ROS2 backend publishes ground-truth "map" -> "v1__base_link".
-    #   We treat that ground-truth frame as the *odometry* frame for SLAM (a perfect
-    #   odom prior). slam_toolbox then estimates "slam_map" -> "map" drift correction
-    #   and publishes the drone pose in "slam_map" on /pose - that is what gets fed
-    #   back to PX4 as external vision.
-    odom_frame: map
+    # Frames (TF chain: slam_map -> odom -> v1__base_link -> rplidar_c1):
+    # - "odom" -> "v1__base_link" is published by px4_odom_tf_bridge.py from PX4's EKF2
+    #   odometry (the motion prior; NOT ground truth - see that node's header).
+    # - "v1__base_link" -> "rplidar_c1" is the static lidar-mount TF (run_slam.sh).
+    # - slam_toolbox estimates the "slam_map" -> "odom" drift correction and publishes the
+    #   drone pose in "slam_map" on /pose, which px4_vision_bridge feeds back to PX4 as EV.
+    odom_frame: odom
     map_frame: slam_map
     base_frame: v1__base_link
     scan_topic: /v1_0/rplidar_c1/laserscan

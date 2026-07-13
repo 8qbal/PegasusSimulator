@@ -86,7 +86,12 @@ class V1Config(MultirotorConfig):
             PX4MavlinkBackend(config=PX4MavlinkBackendConfig()),
             ROS2Backend(vehicle_id=0, config={
                 "namespace": "v1_",
-                "pub_tf": True,
+                # pub_tf publishes a GROUND-TRUTH map->v1__base_link dynamic TF from the sim
+                # state. It is off here so it does not (a) compete for the v1__base_link parent
+                # with the odom->v1__base_link TF that px4_odom_tf_bridge publishes for SLAM
+                # (two parents => broken TF tree), and (b) feed slam_toolbox perfect pose,
+                # which would defeat the point of running SLAM. SLAM's odom is PX4 odometry.
+                "pub_tf": False,
                 "pub_gps": False,
                 "pub_gps_vel": False,
             }),
@@ -94,5 +99,12 @@ class V1Config(MultirotorConfig):
 
 class V1(Multirotor):
 
-    def __init__(self, id: int, world, init_pos=[0.0, 0.0, 0.15], init_orientation=[0.0, 0.0, 0.0, 1.0], config=V1Config()):
+    def __init__(self, id: int, world, init_pos=[0.0, 0.0, 0.15], init_orientation=[0.0, 0.0, 0.0, 1.0], config=None):
+        # Do NOT default `config=V1Config()` in the signature: a mutable/default that calls
+        # V1Config() is evaluated once at import time, which constructs a ROS2Backend (and
+        # thus a live rclpy node "simulator_vehicle_0" with all its publishers) as an import
+        # side effect - a duplicate, orphaned node that collides with the real one and
+        # corrupts the /tf tree. Build the default per-instance instead.
+        if config is None:
+            config = V1Config()
         super().__init__(config.stage_prefix, config.usd_file, id, world, init_pos, init_orientation, config=config)

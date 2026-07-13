@@ -40,6 +40,18 @@ This was done to simplify the launching of Isaac Sim from the terminal with ROS2
 
 Please refer to the updated documentation for more details.
 
+> **ROS 2 environment note.** Isaac Sim bundles its own rclpy (built for Isaac's
+> Python) via the `isaacsim.ros2.bridge` extension. If your shell sources a **system
+> ROS 2** whose Python version differs from Isaac's (e.g. system Humble on py3.10 vs
+> Isaac's py3.12), that system rclpy leaks onto `PYTHONPATH`/`LD_LIBRARY_PATH` and
+> shadows Isaac's, crashing any example that imports rclpy with
+> `ModuleNotFoundError: No module named 'rclpy._rclpy_pybind11'`. Launch Isaac via
+> [`scripts/isaac_run.sh`](scripts/isaac_run.sh), which strips `/opt/ros` and
+> `ros2_ws` entries from the environment before starting Isaac (define
+> `isaac_run() { "$HOME/PegasusSimulator/scripts/isaac_run.sh" "$@"; }` in your rc
+> file). The system-side ROS 2 nodes — e.g. `examples/slam_v1/run_slam.sh` — still
+> source system ROS 2 directly and are unaffected.
+
 * **2025-10-26**: Pegasus Simulator v5.1.0 is released for Isaac 5.1.0. This version is **NOT** compatible with older versions of Isaac Sim. The Ardupilot experimental interface was not tested in this version. This update had an initial open-source contribution from [Victor Kallenbach](https://github.com/HO4X).
 * **2026-06-23**: Pegasus Simulator v6.0.0 is released for Isaac 6.0. Updated all `omni.isaac.*` imports to `isaacsim.*` equivalents and removed deprecated Kit dependencies. The Ardupilot experimental interface was not tested in this version.
 * **2025-10-25**: Pegasus Simulator v4.5.1 is released for Isaac 4.5.0. This version is **NOT** compatible with older versions of Isaac Sim. The Ardupilot experimental interface was fixed and improved by [Seunghwan Jo](https://github.com/SwiftGust) and [Tomer Tiplitsky](https://github.com/TomerTip).

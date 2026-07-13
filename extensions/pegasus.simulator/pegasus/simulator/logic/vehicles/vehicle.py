@@ -98,6 +98,7 @@ class Vehicle(Robot):
         self._articulation = None
         self._rigid_prims = {}
         self._physics_callbacks_registered = False
+        self._render_callback_registered = False
 
         # Add this object for the world to track, so that if we clear the world, this object is deleted from memory and
         # as a consequence, from the VehicleManager as well
@@ -135,8 +136,12 @@ class Vehicle(Robot):
         for graphical_sensor in self._graphical_sensors:
             graphical_sensor.initialize(self)
 
-        # Add callbacks to the rendering engine to update each graphical sensor at every timestep of the rendering engine
-        self._world.add_render_callback(self._stage_prefix + "/GraphicalSensors", self.update_graphical_sensors)
+        # NOTE: the render callback that drives the graphical sensors is registered in
+        # sim_start_stop() once the simulation is playing, NOT here. A render callback
+        # registered in __init__ (before world.reset()) is invalidated by the reset and
+        # fires exactly once during construction, then never again during the run loop -
+        # so the RTX render products / ROS 2 writers are never created. This mirrors how
+        # the physics callbacks are registered post-play in _register_physics_callbacks().
 
 
         # --------------------------------------------------------------------
@@ -207,6 +212,20 @@ class Vehicle(Robot):
         self._world.add_physics_callback(self._stage_prefix + "/mav_state", self._update_sim_state_safe)
         self._physics_callbacks_registered = True
 
+    def _register_render_callback(self):
+        """Register the render callback that drives the graphical sensors.
+
+        Registered from sim_start_stop (once the timeline is playing) rather than in
+        __init__: a render callback added before world.reset() is invalidated by the
+        reset and never fires during the run loop. Registering it post-play - after the
+        graphical sensors' start() has created their RTX render products - lets it fire
+        against a live render pipeline so the ROS 2 sensor writers are actually created.
+        """
+        if self._render_callback_registered:
+            return
+        self._world.add_render_callback(self._stage_prefix + "/GraphicalSensors", self.update_graphical_sensors)
+        self._render_callback_registered = True
+
     def _update_state_safe(self, dt):
         try:
             self.update_state(dt)
@@ -263,9 +282,14 @@ class Vehicle(Robot):
             # simulation manager has created its physics views.
             self._register_physics_callbacks()
 
+            # Register the render callback now (post-play) so the graphical sensors'
+            # RTX render products / ROS 2 writers are created against a live pipeline.
+            self._register_render_callback()
+
         if self._world.is_stopped() and self._sim_running == True:
             self._sim_running = False
             self._physics_callbacks_registered = False
+            self._render_callback_registered = False
 
             # Reset the cached prims and articulation
             self._body_rigid_prim = None
@@ -438,14 +462,35 @@ class Vehicle(Robot):
             event (float): The timer event that contains the time elapsed between the previous and current function calls (s).
         """
 
+        # This callback is only registered once the simulation is playing (see
+        # _register_render_callback). The is_playing() guard below is defensive - a render
+        # callback can still fire during a stop transition, and running the graphical sensors
+        # then would create RTX render products / ROS 2 writers against a pipeline that is no
+        # longer live.
+        if not self._graphical_sensors:
+            return
+        import omni.timeline
+        if not omni.timeline.get_timeline_interface().is_playing():
+            return
+
         # Call the update method for the sensor to update its values internally (if applicable)
         for sensor in self._graphical_sensors:
-            sensor_data = sensor.update(self._state, event.payload['dt'])
+            # Wrap per-sensor so one graphical sensor's failure cannot block the others
+            # (parity with the physics callbacks' _update_*_safe wrappers) and so any
+            # exception is surfaced to the log instead of dying silently in the callback.
+            try:
+                sensor_data = sensor.update(self._state, event.payload['dt'])
 
-            # If some data was updated and we have a ros backend (or other), then just update it
-            if sensor_data is not None:
-                for backend in self._backends:
-                    backend.update_graphical_sensor(sensor.sensor_type, sensor_data)
+                # If some data was updated and we have a ros backend (or other), then just update it
+                if sensor_data is not None:
+                    for backend in self._backends:
+                        backend.update_graphical_sensor(sensor.sensor_type, sensor_data)
+            except Exception as e:
+                import traceback
+                carb.log_error(
+                    f"[{self._stage_prefix}] update_graphical_sensor failed for "
+                    f"{getattr(sensor, 'sensor_type', '?')}: {e}\n{traceback.format_exc()}"
+                )
 
     def update_sim_state(self, dt: float):
         """

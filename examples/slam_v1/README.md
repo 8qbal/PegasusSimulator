@@ -23,6 +23,10 @@ Isaac Sim (V1 + Full Warehouse)                       system ROS 2 Humble
 cd ~/PegasusSimulator
 isaac_run examples/12_px4_v1_vehicle.py
 ```
+> `isaac_run` must be the env-scrubbing launcher (`scripts/isaac_run.sh`) — it strips
+> system ROS 2 from the environment so Isaac's bundled rclpy is used. Otherwise this
+> terminal crashes with `No module named 'rclpy._rclpy_pybind11'` (system py3.10 rclpy
+> vs Isaac py3.12). Terminals 2–3 below keep system ROS 2 and are unaffected.
 
 **Terminal 2 — the SLAM pipeline** (agent + static TF + slam_toolbox + bridge):
 ```bash
