@@ -37,7 +37,7 @@ def generate_launch_description():
             package='tf2_ros',
             executable='static_transform_publisher',
             name='laser_link_to_imu_base',
-            arguments=['0', '0', '-0.135', '0', '0', '0', 'laser_link', 'fcu_imu_base_link_for_laser'],
+            arguments=['0', '0', '0', '0', '0', '0', 'laser_link', 'fcu_imu_base_link_for_laser'],
             parameters=[{'use_sim_time': use_sim_time}],
         ),
         Node(
