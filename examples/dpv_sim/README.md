@@ -81,4 +81,37 @@ preflight failures (~30 s after EV data flows).
 
 ## Phase 2 — Correction + Navigation
 
-(To be implemented — see PLAN.md §6.)
+After Phase 1 is green:
+
+```bash
+# Terminal 3 (source DPV + /opt/ros/humble first)
+source /opt/ros/humble/setup.bash
+source ~/PegasusSimulator/extensions/dpv-install/setup.bash
+ros2 launch ~/PegasusSimulator/examples/dpv_sim/isaac_nav_bringup_phase2.launch.py \
+  mission_file:=~/ros2_ws/src/warehouse_gz_sim_ws/mission_files/0001_0001_0001.json
+```
+
+This adds (staggered):
+- `warehouse_auto_mission` (0 s) + battery stub
+- Mission file load (2 s)
+- `warehouse_path_planner` (4 s)
+- `trajectory_generator` (6 s)
+- `laser_scan_processing` / corrector (8 s)
+- `perception_fusion` (10 s)
+
+Plus relay nodes: `from_fcu_status_relay`, `to_fcu_command_relay`, `to_fcu_trajectory_relay`,
+and the `fcu_pose_to_odom_relay` (pose→odometry for path planner).
+
+### Verify Phase 2
+
+```bash
+ros2 topic hz /warehouse_path_planner/state
+ros2 topic hz /trajectory_generator/state
+ros2 topic hz /warehouse_auto_mission/mission_state
+```
+
+**Note:** The mission bypasses battery (`bypass_battery_for_testing: true` in
+`warehouse_auto_mission_params.yaml`), so `/battery_remaining_time_s` is published
+but not strictly required. Missing packages `warehouse_edt_mapping` /
+`warehouse_obstacle_avoidance` are skipped — if the mission state machine blocks
+on their topics, report the error.
