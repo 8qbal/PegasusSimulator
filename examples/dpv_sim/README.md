@@ -155,3 +155,42 @@ ros2 topic hz /zed/color/camera_info  # Camera intrinsics
 # If launch_vision:=true:
 ros2 topic hz /zed/zed_node/odom_zed_to_fcu  # VIO stub relay
 ```
+
+## Guidance mode — GPS localization + mission/planner/trajectory stack
+
+GPS is acceptable for flight testing when only "guidance mode" (arm → offboard →
+auto-mission waypoint flight) needs to work, not full GPS-denied localization. This
+mode drops Cartographer, the external-vision reroute, and the pose correctors
+entirely, and lets PX4's EKF2 fuse its own simulated GPS instead. The real
+`px4_ros2_bridge` + `warehouse_auto_mission` + `warehouse_path_planner` +
+`trajectory_generator` stack runs unmodified — those packages consume PX4's fused
+local position (`/px4_ros2_bridge/odometry/fcu_pose_at_imu` /
+`fcu_odom_flu`) and don't care whether it came from GPS or vision.
+
+Run it:
+
+```bash
+./start.sh g
+```
+
+Differs from phases 1–3:
+- No TF publishers for the lidar/Cartographer frame chain, no Cartographer bringup.
+- No `to_fcu_vehicle_visual_odometry_node` (EV reroute) — nothing feeds vision/laser
+  odometry to PX4.
+- No pose-corrector / correction-filter stages, no ZED VIO stub.
+- `start.sh g` exports GPS-enabled EKF2 params (`EKF2_GPS_CTRL=7`, `EKF2_EV_CTRL=0`,
+  `EKF2_MAG_CHECK=1`) explicitly, overriding any GPS-denied values a prior phase run
+  may have persisted to the PX4 SITL eeprom.
+
+### Verify guidance mode
+
+```bash
+# QGC: confirm 3D GPS fix and EKF2 preflight checks pass — no "no vision" warning.
+ros2 topic echo /fmu/out/vehicle_gps_position --once
+ros2 topic echo /fmu/out/estimator_status_flags --once   # cs_gps set, cs_ev_pos unset
+ros2 topic hz /px4_ros2_bridge/odometry/fcu_pose_at_imu
+ros2 topic hz /px4_ros2_bridge/odometry/fcu_odom_flu
+# warehouse_auto_mission logs: MissionCommand received, WaypointList published
+# state machine: INIT->IDLE->READY->CHANGE_TO_POSITION_MODE->ARMING->
+#   CHANGE_TO_OFFBOARD_MODE->TAKING_OFF->AUTO_MISSION->MISSION_COMPLETED
+```

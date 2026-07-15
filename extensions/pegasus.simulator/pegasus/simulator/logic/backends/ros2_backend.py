@@ -392,9 +392,14 @@ class ROS2Backend(Backend):
         msg_vel.twist.linear.y = float(data["velocity_east"])
         msg_vel.twist.linear.z = float(data["velocity_down"])
 
-        # Publish the message with the current GPS state
-        self.gps_pub.publish(msg)
-        self.gps_vel_pub.publish(msg_vel)
+        # Publish the message with the current GPS state. gps_pub/gps_vel_pub only exist if
+        # pub_gps/pub_gps_vel were left True (see initialize_publishers) - guard so a vehicle
+        # config that disables the ROS2 GPS topics but still attaches a GPS() sensor (e.g. for
+        # a PX4MavlinkBackend that needs HIL_GPS) doesn't throw here every physics tick.
+        if hasattr(self, "gps_pub"):
+            self.gps_pub.publish(msg)
+        if hasattr(self, "gps_vel_pub"):
+            self.gps_vel_pub.publish(msg_vel)
 
     def update_mag_data(self, data):
         

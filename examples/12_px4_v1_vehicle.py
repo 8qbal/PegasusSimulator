@@ -27,11 +27,16 @@ from pegasus.simulator.logic.state import State
 from pegasus.simulator.logic.backends.px4_mavlink_backend import PX4MavlinkBackend, PX4MavlinkBackendConfig
 from pegasus.simulator.logic.vehicles.multirotor import Multirotor, MultirotorConfig
 from pegasus.simulator.logic.vehicles.multirotors.v1 import V1Config
-from pegasus.simulator.logic.sensors import Barometer, IMU, Magnetometer
+from pegasus.simulator.logic.sensors import Barometer, IMU, Magnetometer, GPS
 from pegasus.simulator.logic.interface.pegasus_interface import PegasusInterface
 # Auxiliary scipy and numpy modules
+import os
 import os.path
 from scipy.spatial.transform import Rotation
+
+# Guidance mode (start.sh phase g) needs GPS reaching PX4 for EKF2 to fuse it -
+# GPS-denied phases 1-3 must NOT have it, so vision/laser is the only position source.
+GUIDANCE_MODE = os.environ.get("DPV_GUIDANCE_MODE") == "1"
 
 class PegasusApp:
     """
@@ -54,17 +59,33 @@ class PegasusApp:
         self.pg._world = World(**self.pg._world_settings)
         self.world = self.pg.world
 
-        # Launch one of the worlds provided by NVIDIA
-        self.pg.load_environment(SIMULATION_ENVIRONMENTS["Warehouse"])
+        # Launch one of the worlds provided by NVIDIA.
+        # "Warehouse with Shelves" — feature-rich enough for the 2D laser SLAM
+        # (cartographer, use_odometry=false) to scan-match against without the drift
+        # seen on the empty "Warehouse", but lighter than "Full Warehouse" so RTF
+        # stays higher (steadier sim time -> cleaner uXRCE timesync, faster EKF2
+        # settling). Options: "Warehouse", "Warehouse with Shelves", "Full Warehouse".
+        self.pg.load_environment(SIMULATION_ENVIRONMENTS["Warehouse with Shelves"])
 
         # Create the vehicle
         # Try to spawn the selected robot in the world to the specified namespace
-        config_multirotor = V1Config()  # carries the real V1 thrust curve (2.8 kgf/motor, 2.0 kg)
+        # enable_zed_camera=True: the ZED's real-spec 1920x1200@30fps RGB-D render is by
+        # far the most expensive thing Isaac does per frame (map geometry is not the
+        # bottleneck - swapping warehouse USDs left RTF unchanged at ~0.52). With it on,
+        # expect lower/jitterier RTF, more uXRCE timesync churn, and slower EKF2
+        # convergence than with it off - set False again if that becomes a problem while
+        # doing Phase 1-2 (examples/dpv_sim/PLAN.md) localization-only testing.
+        config_multirotor = V1Config(enable_zed_camera=True)  # carries the real V1 thrust curve (2.8 kgf/motor, 2.0 kg)
 
-        # GPS-denied setup for SLAM testing: no GPS sensor -> no HIL_GPS is sent to PX4.
-        # Horizontal position must come from SLAM (e.g. vision/odometry into PX4); until then
-        # fly in Stabilized/Altitude mode (baro height only).
-        config_multirotor.sensors = [Barometer(), IMU(), Magnetometer()]
+        if GUIDANCE_MODE:
+            # Guidance mode: keep GPS so PX4MavlinkBackend.send_gps_msgs() sends HIL_GPS
+            # and EKF2 can fuse it (EKF2_GPS_CTRL is set GPS-enabled by start.sh phase g).
+            config_multirotor.sensors = [Barometer(), IMU(), Magnetometer(), GPS()]
+        else:
+            # GPS-denied setup for SLAM testing: no GPS sensor -> no HIL_GPS is sent to PX4.
+            # Horizontal position must come from SLAM (e.g. vision/odometry into PX4); until
+            # then fly in Stabilized/Altitude mode (baro height only).
+            config_multirotor.sensors = [Barometer(), IMU(), Magnetometer()]
         # Create the multirotor configuration
         mavlink_config = PX4MavlinkBackendConfig({
             "vehicle_id": 0,
