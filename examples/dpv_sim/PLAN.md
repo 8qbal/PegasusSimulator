@@ -395,6 +395,18 @@ that the vision corrector expects, with no remapping. `zed_vio_stub.py` remains 
 for phase-3 back-compat; phase 4 uses `zed_odom_to_fcu.py` (re-stamp glue on the real
 wrapper odom).
 
+### 7.3b Phase 4 — real ZED VIO (implemented 2026-07)
+
+The full real EV chain now runs; see `examples/dpv_sim/README.md` "Phase 4" for
+the run procedure. Pieces: `extensions/zed-isaac-sim/` (pinned v5.1.0, needs
+one-time `./build.sh`), `zed_sim_camera.py` (virtual ZED X on the V1 nose,
+SVGA@30 IPC stream), the real `zed_wrapper` in sim_mode (start.sh window "zed",
+`zed_sim_overrides.yaml`), `zed_odom_to_fcu.py` (glue), and
+`isaac_nav_bringup_zed.launch.py` (to_fcu on its real default EV input,
+cartographer in shadow mode). EKF2 staging: D-1 `EV_CTRL=1/HGT_REF=0` (boot
+default) → D-2 `EV_CTRL=3` → D-3 `EV_CTRL=11/HGT_REF=3` (drone eeprom config)
+via `set_px4_gps_denied_params_onboard.py --profile zed`.
+
 ### 7.4 Isaac ZED warmup
 
 Camera topics (`/v1_0/zed2i/*`) appear ~100 rendered frames after sim play starts

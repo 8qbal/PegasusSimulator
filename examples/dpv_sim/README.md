@@ -13,6 +13,20 @@ px4_ros2_bridge, auto-mission) against Isaac Sim instead of Gazebo.
    source ~/PegasusSimulator/extensions/dpv-install/setup.bash
    ```
 4. **EKF2 params** set via onboard link (see below).
+5. **Phase 4 only:** the Stereolabs streamer plugin, built once:
+   `cd ~/PegasusSimulator/extensions/zed-isaac-sim && ./build.sh`
+   (plus ZED SDK 5.x at `/usr/local/zed`, already installed).
+
+## Quick start
+
+Everything below can be driven by tmux instead of manual terminals:
+
+```bash
+./start.sh          # phase 4 (default): REAL ZED VIO as the EV source
+./start.sh 1|2|3    # laser-EV phases (localization / +mission / +vision stub)
+./start.sh g        # guidance mode (GPS-fused, no SLAM/EV)
+./stop.sh           # kill everything
+```
 
 ## Phase 1 — Localization (Lidar + Cartographer → PX4 EV)
 
@@ -130,8 +144,8 @@ contract topics regardless of which launch is used:
 
 ### Vision corrector (experimental, off by default)
 
-The vision corrector normally needs ZED VIO from zed_wrapper, which requires the
-Stereolabs Isaac Sim extension (NOT installed). Two options:
+The vision corrector normally needs ZED VIO from zed_wrapper. In phase 3 that is
+faked with a stub (Phase 4 below runs the real thing). Two options:
 
 **Option A (default):** Skip it — matches Gazebo sim behavior (`CMD_VISION` empty).
 
@@ -155,6 +169,93 @@ ros2 topic hz /zed/color/camera_info  # Camera intrinsics
 # If launch_vision:=true:
 ros2 topic hz /zed/zed_node/odom_zed_to_fcu  # VIO stub relay
 ```
+
+## Phase 4 — Real ZED VIO (default `./start.sh`)
+
+The real drone's external-vision chain, end to end, with no stubs:
+
+```
+Isaac (virtual ZED X stereo + IMU, zed-isaac-sim streamer, IPC :30000)
+  -> ZED SDK 5.x (/usr/local/zed)
+  -> real zed_wrapper  camera_model:=zedx camera_name:=zed sim_mode:=true   (tmux window "zed")
+  -> /zed/zed_node/odom -> zed_odom_to_fcu.py -> /zed/zed_node/odom_zed_to_fcu
+  -> to_fcu_vehicle_visual_odometry (its REAL bridge_params.yaml default input)
+  -> /fmu/in/vehicle_visual_odometry -> EKF2
+```
+
+Cartographer still runs in **shadow mode** (feeds the laser corrector and gives an
+A/B reference in `diagnose_ev_chain.py`) but nothing routes it into PX4 anymore —
+same as the drone, where "cartographer is retired from the stack". The full
+phase-2 mission chain (auto-mission, path planner, trajectory generator,
+correctors) is included. The virtual camera is the ZED X family (the only models
+the streamer supports): same 12 cm baseline as the ZED 2i.
+
+### One-time setup
+
+```bash
+cd ~/PegasusSimulator/extensions/zed-isaac-sim && ./build.sh
+```
+
+Downloads Stereolabs' `libsl_zed` streaming runtime and builds the OGN streamer
+plugin into `exts/sl.sensor.camera/bin/`. `start.sh` refuses to start phase 4
+until this exists.
+
+### Run
+
+```bash
+./start.sh            # phase 4 is the default
+# wait for Isaac to boot + the zed window to connect (it sleeps 45 s first;
+# if it errored because Isaac wasn't streaming yet: Up+Enter in that window)
+./ev_ready.sh         # blocks until EKF2 fuses EV position + attitude level
+./load_mission.sh load ../mission/mission_file_sim_warehouse.json
+./load_mission.sh start
+./load_mission.sh state   # INIT -> ... -> AUTO_MISSION -> MISSION_COMPLETED
+```
+
+### Verify Phase 4
+
+```bash
+ros2 topic hz /zed/zed_node/rgb/image_rect_color      # wrapper connected to the stream
+ros2 topic hz /zed/zed_node/depth/depth_registered    # real depth (steady, no "blinking")
+ros2 topic hz /zed/zed_node/odom                      # real VIO
+ros2 topic hz /zed/zed_node/odom_zed_to_fcu           # glue output = EV input
+python3 diagnose_ev_chain.py                          # chain + cs_ev_pos + level attitude
+```
+
+QGC checklist after ~60 s: no "High Accelerometer Bias" / "Preflight Fail:
+Attitude failure", Position mode accepted, arming OK.
+
+### EKF2 staging (D-1 → D-3)
+
+`start.sh` boots phase 4 with the conservative laser-era params
+(`EKF2_EV_CTRL=1`, `EKF2_HGT_REF=0`). Once `diagnose_ev_chain.py` shows clean EV
+innovations from the real VIO, step toward the drone's eeprom config — either by
+editing the `PX4_GPS_DENIED_PARAMS` line in `start.sh`, or live:
+
+```bash
+python3 set_px4_gps_denied_params_onboard.py --profile zed --ev-ctrl 3            # D-2: +EV height
+python3 set_px4_gps_denied_params_onboard.py --profile zed --ev-ctrl 11 --hgt-ref 3  # D-3: drone config
+```
+
+(each needs the PX4 reboot the script triggers).
+
+### Phase 4 troubleshooting
+
+- **Wrapper exits with a connection error**: Isaac wasn't streaming yet
+  (asset loading takes a while). Re-run with Up+Enter in the `zed` window.
+- **`odom_zed_to_fcu` stamps look far from now**: `zed_odom_to_fcu.py` logs the
+  `now - msg.stamp` offset every 5 s. If it is large or drifting, relaunch the
+  bringup glue with `restamp:=true` (edit `isaac_nav_bringup_zed.launch.py`) and
+  re-check `EKF2_EV_DELAY`.
+- **RTF too low**: the streamer runs SVGA@30 over IPC and the wrapper depth mode
+  is PERFORMANCE (`zed_sim_overrides.yaml`). Only raise
+  `DPV_ZED_RES=HD1080|HD1200` / `DPV_ZED_FPS` if the vision corrector needs it.
+- **EV innovations yaw-dependent**: the sim sets `to_fcu.lever_arm.x=0.355`
+  (camera ahead of the FCU). The drone ships zeros — zero it in
+  `isaac_nav_bringup_zed.launch.py` to match and accept the constant offset.
+- **Vision corrector (stretch)**: `ros2 launch isaac_nav_bringup_zed.launch.py
+  launch_vision:=true` — it consumes the *real* wrapper depth
+  (`/zed/zed_node/depth/depth_registered` + `depth/camera_info`), no remaps.
 
 ## Guidance mode — GPS localization + mission/planner/trajectory stack
 
