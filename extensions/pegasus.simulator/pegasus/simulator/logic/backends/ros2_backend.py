@@ -491,8 +491,14 @@ class ROS2Backend(Backend):
 
         gate_path = omni.syntheticdata.SyntheticData._get_node_path("PostProcessDispatch" + "IsaacSimulationGate", render_prod_path)
 
-        # Set step input of the Isaac Simulation Gate nodes upstream of ROS publishers to control their execution rate
-        og.Controller.attribute(gate_path + ".inputs:step").set(int(60/data["frequency"]))
+        # Publish on EVERY render-product update (step=1). The camera's own frequency
+        # (Camera.set_frequency in monocular_camera.start) is the single rate authority:
+        # this SDG branch only executes when the render product actually produces a frame.
+        # The previous int(60/frequency) assumed a fixed 60 Hz render rate and stacked a
+        # SECOND throttle on top of the camera's - with the real render rate well below 60
+        # the two gates interleaved out of phase and halved/quartered the publish cadence
+        # irregularly (the "blinking" depth stream that destabilized downstream VIO).
+        og.Controller.attribute(gate_path + ".inputs:step").set(1)
 
     def update_lidar_data(self, data):
 

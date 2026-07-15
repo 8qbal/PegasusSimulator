@@ -126,8 +126,13 @@ What Isaac publishes today (verified live): `/clock`, `/v1_0/rplidar_c1/lasersca
 `/v1_0/sensors/{imu,mag}`, `/v1_0/state/*`, rotor refs. Lidar profile is `Example_Rotary_2D`
 (do NOT switch to `RPLIDAR_S2E` — produces zero output in Isaac 6.0).
 
-EKF2 GPS-denied params are already in SITL eeprom (persist across reboots):
-`EKF2_GPS_CTRL=0, EKF2_EV_CTRL=11, EKF2_HGT_REF=3, EKF2_EV_DELAY=50`.
+EKF2 GPS-denied params in SITL eeprom at recon time were the REAL-DRONE ZED-VIO
+config: `EKF2_GPS_CTRL=0, EKF2_EV_CTRL=11, EKF2_HGT_REF=3, EKF2_EV_DELAY=50`.
+Those values are only valid when the EV source has a sane Z (real ZED VIO). With
+cartographer 2D laser odom as EV they diverge the estimator (fusing EV vertical
+injected ~6.8 km height -> roll flip + accel-bias runaway), so the sim now runs
+`EKF2_EV_CTRL=1, EKF2_HGT_REF=0` (see start.sh / set_px4_gps_denied_params_onboard.py).
+Phase 4 (real ZED VIO) stages back toward 11/3 — see set_px4 `--profile zed`.
 
 ---
 
@@ -285,14 +290,17 @@ before expecting offboard motion).
 | ZED SDK | **Installed** at `/usr/local/zed/` (libsl_zed.so, ZED_Explorer, ZED_Diagnostic) |
 | zed-msgs (Python) | **Installed** v5.2.1 |
 | `ros-humble-zed-msgs` | **Installed** |
-| Stereolabs Isaac Sim extension | **NOT FOUND** — no `stereolabs`/`zed` extension in `/home/web-scientia/isaacsim/exts/` |
+| Stereolabs Isaac Sim extension | **AVAILABLE since 2026-06** — zed-isaac-sim v5.1.0 supports Isaac Sim 6.0; pinned clone at `extensions/zed-isaac-sim/` (Phase 4). Virtual cameras are the ZED X family (12 cm baseline like the ZED 2i); zed_wrapper sim_mode must use `camera_model:=zedx` |
 | Isaac ZED camera output | Publishes `/v1_0/zed2i/color/image_raw`, `/v1_0/zed2i/depth`, `/v1_0/zed2i/color/camera_info` |
 | SVI (SIYI camera) | Not on V1 vehicle; Isaac has no SIYI sensor |
 
-**Critical consequence:** Without the Stereolabs Isaac extension, `zed_wrapper` cannot run in
-`sim_mode` (it uses the ZED SDK's streaming API which requires the extension to hook into
-Isaac's render pipeline). The ZED VIO odometry (`/zed/zed_node/odom_zed_to_fcu`) that the
-vision corrector consumes cannot come from the real zed_wrapper.
+**Critical consequence (RESOLVED by Phase 4):** at recon time no Stereolabs Isaac
+extension existed for this Isaac version, so `zed_wrapper` could not run in `sim_mode`
+and the ZED VIO odometry (`/zed/zed_node/odom_zed_to_fcu`) had to be faked
+(`zed_vio_stub.py`, Option B below). zed-isaac-sim **v5.1.0** (June 2026) added Isaac
+Sim 6.0 support: the virtual ZED streams to ZED SDK 5.0.7 (IPC, port 30000) and the
+real `zed_wrapper` runs `sim_mode:=true` — see Phase 4 (`start.sh` default) and
+`isaac_nav_bringup_zed.launch.py`.
 
 ### 7.2 Camera topic remapping (3.1)
 
@@ -379,6 +387,13 @@ but the beam inference still needs real camera images for pillar detection.
 **Recommendation:** Implement Option A first (skip corrector, just remap camera topics
 for visualization/rviz). Option B is a separate investigation if vision-behavior is
 specifically needed.
+
+**Phase 4 supersedes both options:** the real `zed_wrapper` VIO now runs against the
+Isaac stream (zed-isaac-sim v5.1.0 + ZED SDK sim_mode), publishing the true
+`/zed/zed_node/*` topics — including `depth/depth_registered` + `depth/camera_info`
+that the vision corrector expects, with no remapping. `zed_vio_stub.py` remains only
+for phase-3 back-compat; phase 4 uses `zed_odom_to_fcu.py` (re-stamp glue on the real
+wrapper odom).
 
 ### 7.4 Isaac ZED warmup
 

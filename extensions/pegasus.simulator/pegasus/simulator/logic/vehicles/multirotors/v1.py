@@ -25,14 +25,17 @@ class V1Config(MultirotorConfig):
     def __init__(self, enable_zed_camera: bool = True):
         """
         Args:
-            enable_zed_camera (bool): The ZED 2i is modeled at its real full-HD RGB-D
-                spec (1920x1200 @ 30fps) — by far the most expensive thing Isaac renders
-                per frame (much more than warehouse geometry). Set False when the camera
-                feed isn't consumed yet (e.g. localization-only testing, Phase 1-2 of
-                examples/dpv_sim/PLAN.md) to recover RTF/sim-time steadiness; the low,
-                jittery RTF this camera causes shows up as slow EKF2 convergence, uXRCE
-                timesync churn, and stuttery ("blinking") depth frames. Re-enable for
-                Phase 3 (vision corrector) work, which needs the real feed.
+            enable_zed_camera (bool): Enables the Isaac-native ZED 2i RGB-D camera
+                (the SD-writer path publishing /zed/image_raw etc.). Modeled at HD720
+                (1280x720 @ 30fps) — the resolution the real drone actually grabs
+                (dpv-install zed_wrapper config zed2i.yaml: grab_resolution HD720).
+                It was previously 1920x1200 (a ZED X mode the ZED 2i doesn't even have),
+                which made it by far the most expensive thing Isaac rendered per frame:
+                the low, jittery RTF showed up as slow EKF2 convergence, uXRCE timesync
+                churn, and stuttery ("blinking") depth frames. Set False when the feed
+                isn't consumed (localization-only phases) or when the Stereolabs
+                zed-isaac-sim streamer provides the camera instead (DPV_ZED_MODE=wrapper
+                in examples/12_px4_v1_vehicle.py) — running both doubles render cost.
         """
 
         # Initialize the base config first (sets graphical_sensors, graphs, etc.)
@@ -62,8 +65,9 @@ class V1Config(MultirotorConfig):
         self.sensors = [Barometer(), IMU(), Magnetometer(), GPS()]
 
         # Graphical sensors carried by the real V1 drone:
-        # - ZED 2i stereo camera looking forward at the nose (modeled as a monocular RGB-D camera:
-        #   per-eye 1920x1200 @ 30 fps, ~102 deg horizontal FOV -> fx = fy ~= 777 px)
+        # - ZED 2i stereo camera looking forward at the nose (modeled as a monocular RGB-D
+        #   camera at the real grab spec: HD720 per eye @ 30 fps, ~102 deg horizontal
+        #   FOV -> fx = fy ~= 518 px)
         # - RPLIDAR C1 2D lidar on the upper body (RPLIDAR_S2E is the closest RTX lidar
         #   profile shipped with Isaac Sim - same SLAMTEC 2D 360 deg rotary family)
         self.graphical_sensors = []
@@ -71,9 +75,9 @@ class V1Config(MultirotorConfig):
             self.graphical_sensors.append(
                 MonocularCamera("zed2i", config={
                     "position": [0.355, 0.0, 0.0],
-                    "resolution": (1920, 1200),
+                    "resolution": (1280, 720),
                     "frequency": 30,
-                    "intrinsics": [[777.0, 0.0, 960.0], [0.0, 777.0, 600.0], [0.0, 0.0, 1.0]],
+                    "intrinsics": [[518.0, 0.0, 640.0], [0.0, 518.0, 360.0], [0.0, 0.0, 1.0]],
                     "depth": True,
                     "color_topic": "/zed/image_raw",
                     "depth_topic": "/zed/depth",
