@@ -1,0 +1,68 @@
+{
+  "type_definitions": {
+    "rack_type": {
+      "1": "horizontal_beam",
+      "2": "vertical_beam"
+    },
+    "waypoint_type": {
+      "1": "takeoff",
+      "3": "move_y",
+      "5": "prepare_landing",
+      "10": "move_to_point_A",
+      "11": "ascend_at_point_A",
+      "20": "move_to_point_B",
+      "21": "ascend_at_point_B"
+    },
+    "bin_type": {
+      "1": "STORAGE"
+    }
+  },
+  "mission_waypoints": [
+    {"type": 1,  "id": 0,  "x": 0.0,  "y": 0.0,  "z": 1.0,  "yaw": 30.0},
+    {"type": 3,  "id": 1,  "x": 0.0,  "y": 0.6,  "z": 1.0,  "yaw": 30.0},
+
+    {"type": 20, "id": 2,  "x": 1.0,  "y": 0.6,  "z": 1.0,  "yaw": 30.0},
+    {"type": 21, "id": 3,  "x": 1.0,  "y": 0.6,  "z": 1.33, "yaw": 30.0},
+    {"type": 10, "id": 4,  "x": 16.0, "y": 0.6,  "z": 1.33, "yaw": 30.0},
+
+    {"type": 11, "id": 5,  "x": 16.0, "y": 0.6,  "z": 2.83, "yaw": 30.0},
+    {"type": 20, "id": 6,  "x": 1.0,  "y": 0.6,  "z": 2.83, "yaw": 30.0},
+
+    {"type": 21, "id": 7,  "x": 1.0,  "y": 0.6,  "z": 4.13, "yaw": 30.0},
+    {"type": 10, "id": 8,  "x": 16.0, "y": 0.6,  "z": 4.13, "yaw": 30.0},
+
+    {"type": 20, "id": 9,  "x": 0.0,  "y": 0.6,  "z": 4.13, "yaw": 30.0},
+    {"type": 3,  "id": 10, "x": 0.0,  "y": 0.0,  "z": 4.13, "yaw": 30.0},
+    {"type": 5,  "id": 11, "x": 0.0,  "y": 0.0,  "z": 0.0,  "yaw": 30.0}
+  ],
+  "z_level_map": [
+    {"waypoint_z": 1.33, "tag_z": 1.23},
+    {"waypoint_z": 2.83, "tag_z": 2.73},
+    {"waypoint_z": 4.13, "tag_z": 4.03}
+  ],
+  "mission_info": {
+    "mission_name": "Isaac Warehouse Left-Rack Scan",
+    "mission_version": "1.0",
+    "creation_date": "2026-07-15",
+    "operator": "Simulation",
+    "flight_parameters": {
+      "max_altitude_m": 4.13,
+      "safety_buffer_m": 0.2,
+      "estimated_duration_s": 180
+    },
+    "notes": "Boustrophedon scan of the LEFT rack in the Isaac DPV aisle, modelled on the real M0001_KZ01 pattern (move_to_point_B -> ascend -> move_to_point_A -> ascend, one traverse per shelf level). Yaw is held at 30 deg throughout, so there are no type-2 turn waypoints. Frame: mission +x is EAST (Isaac +X) and the origin is the vehicle spawn at Isaac (-9, 0) - the stack works in the ENU fcu_odom_flu frame, NOT PX4 NED. Yaw is ENU too (0 = +x/East, CCW positive), so 30 deg points the nose/ZED 30 deg toward +y, i.e. at the left rack; the scan therefore stands off at y=+0.6, 1.02 m from that rack's face at y=+1.6175. Traverse heights are the stock Isaac rack's measured shelf decks (1.33, 2.83, 4.13; frame top 6.00). Scanned span x=1..16 sits well inside the 35.24 m hall, which runs x=-8.62..26.62 in this frame."
+  },
+  "bin_locations_map": [],
+  "rack_structure_map": {
+    "horizontal_beams": [
+      {"id": 1, "type": 1, "start": {"x": -8.62, "y": 1.6175, "z": 1.33}, "end": {"x": 26.62, "y": 1.6175, "z": 1.33}},
+      {"id": 2, "type": 1, "start": {"x": -8.62, "y": 1.6175, "z": 2.83}, "end": {"x": 26.62, "y": 1.6175, "z": 2.83}},
+      {"id": 3, "type": 1, "start": {"x": -8.62, "y": 1.6175, "z": 4.13}, "end": {"x": 26.62, "y": 1.6175, "z": 4.13}}
+    ],
+    "vertical_uprights": [
+      {"id": 10, "type": 2, "start": {"x": -8.62, "y": 1.6175, "z": 0.0}, "end": {"x": -8.62, "y": 1.6175, "z": 6.0}},
+      {"id": 11, "type": 2, "start": {"x": 8.99,  "y": 1.6175, "z": 0.0}, "end": {"x": 8.99,  "y": 1.6175, "z": 6.0}},
+      {"id": 12, "type": 2, "start": {"x": 26.62, "y": 1.6175, "z": 0.0}, "end": {"x": 26.62, "y": 1.6175, "z": 6.0}}
+    ]
+  }
+}

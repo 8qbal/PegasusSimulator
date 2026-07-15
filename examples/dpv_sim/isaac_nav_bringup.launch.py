@@ -78,4 +78,14 @@ def generate_launch_description():
                 {'to_fcu.input_topics.odometry': '/cartographer/laser_odom_at_fcu'},
             ],
         ),
+        # Publishes /px4_ros2_bridge/odometry/fcu_odom_flu, which
+        # cartographer_pose_transformer requires to initialize laser_odom_at_fcu
+        # (it waits forever otherwise and never feeds EV back to PX4).
+        Node(
+            package='px4_ros2_bridge',
+            executable='from_fcu_vehicle_odometry_node',
+            name='from_fcu_vehicle_odometry',
+            output='screen',
+            parameters=[bridge_params, {'use_sim_time': use_sim_time}],
+        ),
     ])

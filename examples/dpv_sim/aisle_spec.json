@@ -1,0 +1,21 @@
+{
+  "aisle_measurement": {
+    "initial_height_m": 0.85,
+    "horizontal_beam_width": {
+      "low_lvl_m": 0.09,
+      "second_m": 0.07
+    },
+    "upright_height_m": 0.93,
+    "upright_width_m": 0.09,
+    "width_between_upright_m": 2.68,
+    "bin_location_width_pattern_m": [0.5, 1.33, 2.17],
+    "pallet_height_m": {
+      "wood": 0.11,
+      "plastic": 0.16
+    },
+    "height_between_horizontal_beam_m": 0.93,
+    "horizontal_beam_count": 8,
+    "aisle_lvl": 9,
+    "aisle_width_m": [3.225, 3.245]
+  }
+}

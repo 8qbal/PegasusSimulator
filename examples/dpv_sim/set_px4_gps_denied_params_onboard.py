@@ -12,11 +12,20 @@ from pymavlink import mavutil
 
 ONBOARD_URL = 'udpin:127.0.0.1:14540'
 
+# EKF2_EV_CTRL bits: 0=horiz pos, 1=vert pos, 2=velocity, 3=yaw.
+# Horizontal position ONLY (=1): the 2D laser SLAM has no valid Z, so fusing EV
+# vertical injected a ~6.8 km height and diverged the estimator. Height is baro
+# (EKF2_HGT_REF=0). EV yaw is 90 deg off in NED and gets gated, so it's left off;
+# mag provides heading. Re-enable laser heading later with EKF2_EV_CTRL=9.
+# EKF2_MAG_CHECK=0: disable mag field-strength/inclination gate. GPS-denied it
+# validates against a hardcoded average (not the sim's real Jakarta field), so in a
+# clean sim it only risks spurious mag rejections that stall heading convergence.
 PARAMS = {
     'EKF2_GPS_CTRL': 0,
-    'EKF2_EV_CTRL': 11,
-    'EKF2_HGT_REF': 3,
+    'EKF2_EV_CTRL': 1,
+    'EKF2_HGT_REF': 0,
     'EKF2_EV_DELAY': 50,
+    'EKF2_MAG_CHECK': 0,
 }
 
 

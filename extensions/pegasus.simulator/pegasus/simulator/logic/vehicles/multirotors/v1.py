@@ -22,7 +22,18 @@ from pegasus.simulator.params import ROBOTS
 
 class V1Config(MultirotorConfig):
 
-    def __init__(self):
+    def __init__(self, enable_zed_camera: bool = True):
+        """
+        Args:
+            enable_zed_camera (bool): The ZED 2i is modeled at its real full-HD RGB-D
+                spec (1920x1200 @ 30fps) — by far the most expensive thing Isaac renders
+                per frame (much more than warehouse geometry). Set False when the camera
+                feed isn't consumed yet (e.g. localization-only testing, Phase 1-2 of
+                examples/dpv_sim/PLAN.md) to recover RTF/sim-time steadiness; the low,
+                jittery RTF this camera causes shows up as slow EKF2 convergence, uXRCE
+                timesync churn, and stuttery ("blinking") depth frames. Re-enable for
+                Phase 3 (vision corrector) work, which needs the real feed.
+        """
 
         # Initialize the base config first (sets graphical_sensors, graphs, etc.)
         super().__init__()
@@ -55,18 +66,22 @@ class V1Config(MultirotorConfig):
         #   per-eye 1920x1200 @ 30 fps, ~102 deg horizontal FOV -> fx = fy ~= 777 px)
         # - RPLIDAR C1 2D lidar on the upper body (RPLIDAR_S2E is the closest RTX lidar
         #   profile shipped with Isaac Sim - same SLAMTEC 2D 360 deg rotary family)
-        self.graphical_sensors = [
-            MonocularCamera("zed2i", config={
-                "position": [0.355, 0.0, 0.0],
-                "resolution": (1920, 1200),
-                "frequency": 30,
-                "intrinsics": [[777.0, 0.0, 960.0], [0.0, 777.0, 600.0], [0.0, 0.0, 1.0]],
-                "depth": True,
-                "color_topic": "/zed/image_raw",
-                "depth_topic": "/zed/depth",
-                "camera_info_topic": "/zed/color/camera_info",
-                "camera_frame_id": "zed2i_camera_link",
-            }),
+        self.graphical_sensors = []
+        if enable_zed_camera:
+            self.graphical_sensors.append(
+                MonocularCamera("zed2i", config={
+                    "position": [0.355, 0.0, 0.0],
+                    "resolution": (1920, 1200),
+                    "frequency": 30,
+                    "intrinsics": [[777.0, 0.0, 960.0], [0.0, 777.0, 600.0], [0.0, 0.0, 1.0]],
+                    "depth": True,
+                    "color_topic": "/zed/image_raw",
+                    "depth_topic": "/zed/depth",
+                    "camera_info_topic": "/zed/color/camera_info",
+                    "camera_frame_id": "zed2i_camera_link",
+                })
+            )
+        self.graphical_sensors.append(
             Lidar("rplidar_c1", config={
                 "position": [0.0, 0.0, 0.135],
                 "sensor_configuration": "Example_Rotary_2D",
@@ -74,8 +89,8 @@ class V1Config(MultirotorConfig):
                 "show_render": False,
                 "scan_topic": "/scan",
                 "scan_frame_id": "laser_link",
-            }),
-        ]
+            })
+        )
 
         # Backends: PX4 over MAVLink for flight control, plus a ROS 2 backend that publishes
         # the ZED image/depth/camera_info and RPLIDAR point cloud/laser scan (feeding SLAM),

@@ -132,24 +132,16 @@ def generate_launch_description():
             parameters=[{'use_sim_time': use_sim_time}],
         ),
 
+        # Publishes /px4_ros2_bridge/odometry/fcu_odom_flu, which
+        # cartographer_pose_transformer requires to initialize laser_odom_at_fcu.
+        # (Replaces the old topic_tools relay from fcu_pose_at_imu — that topic is
+        # also published only by this node, so the relay never had input.)
         Node(
-            package='topic_tools',
-            executable='transform',
-            name='fcu_pose_to_odom_relay',
-            arguments=[
-                '/px4_ros2_bridge/odometry/fcu_pose_at_imu',
-                '/px4_ros2_bridge/odometry/fcu_odom_flu',
-                'nav_msgs/msg/Odometry',
-                'nav_msgs.msg.Odometry('
-                'header=m.header, '
-                'child_frame_id=m.header.frame_id, '
-                'pose=geometry_msgs.msg.PoseWithCovariance(pose=m.pose))',
-                '--import', 'nav_msgs', 'geometry_msgs',
-            ],
+            package='px4_ros2_bridge',
+            executable='from_fcu_vehicle_odometry_node',
+            name='from_fcu_vehicle_odometry',
             output='screen',
-            respawn=True,
-            respawn_delay=2.0,
-            parameters=[{'use_sim_time': use_sim_time}],
+            parameters=[bridge_params, {'use_sim_time': use_sim_time}],
         ),
 
         ExecuteProcess(

@@ -57,14 +57,27 @@ tmux send-keys -t "$SESSION:0" \
 #   validates against a hardcoded average field (not the real Jakarta field from the sim
 #   mag model), so in a clean sim (no hard-iron) it only risks spurious mag rejections
 #   that stall heading convergence. Safe to disable in sim; heading is mag-only here.
-PX4_GPS_DENIED_PARAMS="export PX4_PARAM_EKF2_GPS_CTRL=0 PX4_PARAM_EKF2_EV_CTRL=1 PX4_PARAM_EKF2_HGT_REF=0 PX4_PARAM_EKF2_EV_DELAY=50 PX4_PARAM_EKF2_MAG_CHECK=0"
+# UXRCE_DDS_SYNCT=0: disable uxrce_dds_client's timestamp synchronisation. It measures
+#   the offset between the *Agent OS (wall) clock* and *PX4 time*, but PX4 SITL here runs
+#   on Isaac-driven sim time at RTF ~0.5, so that offset genuinely drifts ~500 ms per wall
+#   second. Timesync (src/lib/timesync/Timesync.hpp) rejects samples >100 ms off its
+#   estimate and resets the filter after 10 consecutive ones, producing an endless
+#   "time jump detected" -> "sync no longer converged" -> "converged" loop. This is
+#   structural at any RTF != 1.0 and is NOT caused by render load (the ZED camera only
+#   moves the RTF value, never to exactly 1.0). Disabling it makes the /fmu/out/* stamps
+#   pass through as raw PX4 sim time, which is what the ROS 2 side already expects:
+#   every node runs use_sim_time:=true against the /clock that Pegasus's ROS2Backend
+#   publishes from the same sim clock. Applied at rcS:134 (param set), well before
+#   uxrce_dds_client start at rcS:320, so the param's reboot_required is satisfied.
+PX4_SIM_TIME_PARAMS="PX4_PARAM_UXRCE_DDS_SYNCT=0"
+PX4_GPS_DENIED_PARAMS="export $PX4_SIM_TIME_PARAMS PX4_PARAM_EKF2_GPS_CTRL=0 PX4_PARAM_EKF2_EV_CTRL=1 PX4_PARAM_EKF2_HGT_REF=0 PX4_PARAM_EKF2_EV_DELAY=50 PX4_PARAM_EKF2_MAG_CHECK=0"
 # Guidance mode (phase g): GPS is the position source, so explicitly restore the
 # stock/GPS-enabled EKF2 params rather than omitting them — SITL persists params to
 # eeprom (build/px4_sitl_default/rootfs/eeprom), so a prior GPS-denied phase run could
 # otherwise leave EKF2_GPS_CTRL=0 baked in and silently starve the estimator of GPS.
 # EKF2_GPS_CTRL=7 is PX4's firmware default (2D pos + vel + hgt fusion, verified via
 # PARAM_DEFINE_INT32(EKF2_GPS_CTRL, 7) in the built module_params.c).
-PX4_GUIDANCE_PARAMS="export PX4_PARAM_EKF2_GPS_CTRL=7 PX4_PARAM_EKF2_EV_CTRL=0 PX4_PARAM_EKF2_HGT_REF=0 PX4_PARAM_EKF2_MAG_CHECK=1"
+PX4_GUIDANCE_PARAMS="export $PX4_SIM_TIME_PARAMS PX4_PARAM_EKF2_GPS_CTRL=7 PX4_PARAM_EKF2_EV_CTRL=0 PX4_PARAM_EKF2_HGT_REF=0 PX4_PARAM_EKF2_MAG_CHECK=1"
 if [ "$PHASE" = "g" ]; then
     PX4_PARAMS="$PX4_GUIDANCE_PARAMS"
     # Tells 12_px4_v1_vehicle.py to attach the GPS() sensor (guidance mode needs HIL_GPS

@@ -1,0 +1,251 @@
+Panels:
+  - Class: rviz_common/Displays
+    Help Height: 70
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /Global Options1
+        - /TF1
+      Splitter Ratio: 0.5
+    Tree Height: 345
+  - Class: rviz_common/Views
+    Expanded:
+      - /Current View1
+    Name: Views
+    Splitter Ratio: 0.5
+  - Class: rviz2_plugin/WarehouseStatusPanel
+    Name: WarehouseStatusPanel
+  - Class: rviz2_plugin/WarehouseCommanderPanel
+    Name: WarehouseCommanderPanel
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Alpha: 0.5
+      Cell Size: 1
+      Class: rviz_default_plugins/Grid
+      Color: 160; 160; 164
+      Enabled: true
+      Line Style:
+        Line Width: 0.029999999329447746
+        Value: Lines
+      Name: Grid
+      Normal Cell Count: 0
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Plane: XY
+      Plane Cell Count: 40
+      Reference Frame: <Fixed Frame>
+      Value: true
+    - Class: rviz_default_plugins/TF
+      Enabled: true
+      Frame Timeout: 15
+      Frames:
+        All Enabled: true
+        base_link_fcu:
+          Value: true
+        decoding_camera:
+          Value: true
+        fcu_imu_base_link_for_laser:
+          Value: true
+        inspection_camera:
+          Value: true
+        laser_link:
+          Value: true
+        map:
+          Value: true
+        odom_fcu:
+          Value: true
+        rplidar_c1:
+          Value: true
+        v1__base_link:
+          Value: true
+      Marker Scale: 1
+      Name: TF
+      Show Arrows: true
+      Show Axes: true
+      Show Names: true
+      Tree:
+        map:
+          odom_fcu:
+            base_link_fcu:
+              decoding_camera:
+                {}
+              inspection_camera:
+                {}
+              laser_link:
+                fcu_imu_base_link_for_laser:
+                  {}
+      Update Interval: 0
+      Value: true
+    - Alpha: 1
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 10
+        Min Value: -10
+        Value: true
+      Axis: Z
+      Channel Name: intensity
+      Class: rviz_default_plugins/LaserScan
+      Color: 255; 255; 0
+      Color Transformer: FlatColor
+      Decay Time: 0
+      Enabled: true
+      Invert Rainbow: false
+      Max Color: 255; 255; 255
+      Max Intensity: 4096
+      Min Color: 0; 0; 0
+      Min Intensity: 0
+      Name: Scan
+      Position Transformer: ""
+      Selectable: true
+      Size (Pixels): 3
+      Size (m): 0.029999999329447746
+      Style: Points
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /scan
+      Use Fixed Frame: true
+      Use rainbow: true
+      Value: true
+    - Alpha: 1
+      Axes Length: 1
+      Axes Radius: 0.10000000149011612
+      Class: rviz_default_plugins/Pose
+      Color: 0; 255; 0
+      Enabled: true
+      Head Length: 0.20000000298023224
+      Head Radius: 0.10000000149011612
+      Name: FCU pose
+      Shaft Length: 0.6000000238418579
+      Shaft Radius: 0.05000000074505806
+      Shape: Arrow
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /px4_ros2_bridge/odometry/fcu_pose_at_imu
+      Value: true
+    - Alpha: 1
+      Axes Length: 1
+      Axes Radius: 0.10000000149011612
+      Class: rviz_default_plugins/Pose
+      Color: 255; 85; 0
+      Enabled: true
+      Head Length: 0.15000000596046448
+      Head Radius: 0.07999999821186066
+      Name: Trajectory reference
+      Shaft Length: 0.4000000059604645
+      Shaft Radius: 0.03999999910593033
+      Shape: Arrow
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /trajectory_generator/reference_pose
+      Value: true
+    - Alpha: 1
+      Axes Length: 1
+      Axes Radius: 0.10000000149011612
+      Class: rviz_default_plugins/Pose
+      Color: 0; 170; 255
+      Enabled: true
+      Head Length: 0.30000001192092896
+      Head Radius: 0.10000000149011612
+      Name: Planner current waypoint
+      Shaft Length: 1
+      Shaft Radius: 0.05000000074505806
+      Shape: Arrow
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /warehouse_path_planner/viz/current_waypoint
+      Value: true
+    - Alpha: 1
+      Axes Length: 1
+      Axes Radius: 0.10000000149011612
+      Class: rviz_default_plugins/Pose
+      Color: 255; 0; 255
+      Enabled: true
+      Head Length: 0.30000001192092896
+      Head Radius: 0.10000000149011612
+      Name: Planner target
+      Shaft Length: 1
+      Shaft Radius: 0.05000000074505806
+      Shape: Arrow
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /warehouse_path_planner/viz/target_pose
+      Value: true
+  Enabled: true
+  Global Options:
+    Background Color: 48; 48; 48
+    Fixed Frame: map
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/Interact
+      Hide Inactive Objects: true
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+      Line color: 128; 128; 0
+  Transformation:
+    Current:
+      Class: rviz_default_plugins/TF
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 6.127021789550781
+      Enable Stereo Rendering:
+        Stereo Eye Separation: 0.05999999865889549
+        Stereo Focal Distance: 1
+        Swap Stereo Eyes: false
+        Value: false
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 1
+      Focal Shape Fixed Size: true
+      Focal Shape Size: 0.05000000074505806
+      Invert Z Axis: false
+      Name: Current View
+      Near Clip Distance: 0.009999999776482582
+      Pitch: 0.5
+      Target Frame: <Fixed Frame>
+      Value: Orbit (rviz_default_plugins)
+      Yaw: 1.5700000524520874
+    Saved: ~
+Window Geometry:
+  Displays:
+    collapsed: false
+  Height: 928
+  Hide Left Dock: false
+  Hide Right Dock: false
+  QMainWindow State: 000000ff00000000fd000000030000000000000156000002c8fc0200000002fb000000100044006900730070006c00610079007300000000bb000001dc000000c900fffffffb0000000a0056006900650077007300000000bb000002c8000000a400ffffff000000010000055100000346fc0200000001fb0000002800570061007200650068006f00750073006500530074006100740075007300500061006e0065006c000000003d000002fe0000028000ffffff00000002000006e500000078fc0100000001fb0000002e00570061007200650068006f0075007300650043006f006d006d0061006e00640065007200500061006e0065006c0100000000000006e50000065300ffffff000006e5000002c800000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  Views:
+    collapsed: false
+  WarehouseCommanderPanel:
+    collapsed: false
+  WarehouseStatusPanel:
+    collapsed: false
+  Width: 1765
+  X: -339
+  Y: 153

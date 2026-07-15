@@ -1,0 +1,133 @@
+{
+  "type_definitions": {
+    "rack_type": {
+      "1": "horizontal_beam",
+      "2": "vertical_beam"
+    },
+    "waypoint_type": {
+      "1": "takeoff",
+      "5": "prepare_landing",
+      "10": "move_to_point_A"
+    },
+    "bin_type": {
+      "1": "STORAGE"
+    }
+  },
+  "mission_waypoints": [
+    {
+      "type": 1,
+      "id": 0,
+      "x": 0.0,
+      "y": 0.0,
+      "z": 1.0,
+      "yaw": 30.0
+    },
+    {
+      "type": 10,
+      "id": 1,
+      "x": 1.5,
+      "y": 0.0,
+      "z": 1.0,
+      "yaw": 30.0
+    },
+    {
+      "type": 10,
+      "id": 1,
+      "x": 2.5,
+      "y": 0.0,
+      "z": 1.0,
+      "yaw": 30.0
+    },
+    {
+      "type": 10,
+      "id": 1,
+      "x": 5.5,
+      "y": 0.0,
+      "z": 1.0,
+      "yaw": 30.0
+    },
+    {
+      "type": 10,
+      "id": 1,
+      "x": 10.5,
+      "y": 0.0,
+      "z": 1.0,
+      "yaw": 30.0
+    },
+    {
+      "type": 5,
+      "id": 2,
+      "x": 10.5,
+      "y": 0.0,
+      "z": 1.0,
+      "yaw": 30.0
+    }
+  ],
+  "z_level_map": [
+    {
+      "waypoint_z": 1.0,
+      "tag_z": 0.9
+    }
+  ],
+  "mission_info": {
+    "mission_name": "Gazebo Warehouse Aisle Simulation",
+    "mission_version": "1.0",
+    "creation_date": "2026-06-23",
+    "operator": "Simulation",
+    "flight_parameters": {
+      "max_altitude_m": 1.0,
+      "safety_buffer_m": 0.2,
+      "estimated_duration_s": 45
+    },
+    "notes": "Simulation-only mission aligned with the local +X aisle direction."
+  },
+  "bin_locations_map": [],
+  "rack_structure_map": {
+    "horizontal_beams": [
+      {
+        "id": 1,
+        "type": 1,
+        "start": {"x": 0.0, "y": -1.05, "z": 0.35},
+        "end": {"x": 7.13, "y": -1.05, "z": 0.35}
+      },
+      {
+        "id": 2,
+        "type": 1,
+        "start": {"x": 0.0, "y": -1.05, "z": 0.9},
+        "end": {"x": 7.13, "y": -1.05, "z": 0.9}
+      },
+      {
+        "id": 3,
+        "type": 1,
+        "start": {"x": 0.0, "y": -1.05, "z": 1.45},
+        "end": {"x": 7.13, "y": -1.05, "z": 1.45}
+      }
+    ],
+    "vertical_uprights": [
+      {
+        "id": 10,
+        "type": 2,
+        "start": {"x": 0.04, "y": -1.05, "z": 0.0},
+        "end": {"x": 0.04, "y": -1.05, "z": 1.8}
+      },
+      {
+        "id": 11,
+        "type": 2,
+        "start": {"x": 3.53, "y": -1.05, "z": 0.0},
+        "end": {"x": 3.53, "y": -1.05, "z": 1.8}
+      },
+      {
+        "id": 12,
+        "type": 2,
+        "start": {"x": 3.63, "y": -1.05, "z": 0.0},
+        "end": {"x": 3.63, "y": -1.05, "z": 1.8}
+      },
+      {
+        "id": 13,
+        "type": 2,
+        "start": {"x": 7.13, "y": -1.05, "z": 0.0},
+        "end": {"x": 7.13, "y": -1.05, "z": 1.8}
+      }
+    ]
+  }
+}

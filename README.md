@@ -134,3 +134,20 @@ The work developed by Marcelo Jacinto and João Pinto was supported by Ph.D. gra
   <img src="docs/_static/ist_logo.png" width="200" align="center"/> 
   <img src="docs/_static/logo_fct.png" width="200" align="center"/> 
 </p>
+
+## Repository Structure
+
+* [`extensions/pegasus.simulator`](extensions/pegasus.simulator) — the core Isaac Sim extension. Its `pegasus/simulator/logic` package contains the vehicle dynamics, control `backends` (PX4/ArduPilot MAVLink, python control), `sensors`, `graphical_sensors`, `thrusters`, `graphs`, `people`/`people_backends`, and `vehicles` submodules that make up the simulation framework's public API.
+* [`examples`](examples) — standalone runnable scripts demonstrating the framework, numbered roughly in order of complexity (e.g. `1_px4_single_vehicle.py`, `2_px4_multi_vehicle.py`, `3_ros2_single_vehicle.py`, `4_python_single_vehicle.py`, `8_camera_vehicle.py`, `9_people.py`, `11_ardupilot_multi_vehicle.py`, `12_px4_v1_vehicle.py`), plus `dpv_sim` and `slam_v1` subdirectories with more elaborate ROS 2 / navigation bringup setups.
+* [`scripts/isaac_run.sh`](scripts/isaac_run.sh) — the launcher used by the `isaac_run` shell function to start Isaac Sim with a ROS-free environment so its bundled rclpy is used instead of any system ROS 2 install.
+* [`docs`](docs) — Sphinx documentation sources, published at [pegasussimulator.github.io/PegasusSimulator](https://pegasussimulator.github.io/PegasusSimulator/).
+
+## Quick Start
+
+Once Isaac Sim and the `isaac_run` shell function are installed (see the [Installation Instructions](https://pegasussimulator.github.io/PegasusSimulator/source/setup/installation.html)), run any example script with:
+
+```bash
+isaac_run examples/1_px4_single_vehicle.py
+```
+
+This launches Isaac Sim, loads the Pegasus Simulator extension, and spawns a single multirotor vehicle controlled through the PX4 MAVLink backend. Browse the [`examples`](examples) directory for other scenarios (multi-vehicle, ROS 2, camera sensors, ArduPilot, and the custom V1 vehicle).
