@@ -23,6 +23,14 @@ pkill -9 -f "px4_ros2_bridge" 2>/dev/null || true
 pkill -9 -f "warehouse_" 2>/dev/null || true
 pkill -9 -f "path_planner" 2>/dev/null || true
 pkill -9 -f "trajectory_generator" 2>/dev/null || true
+# Phase 4 ZED chain: the wrapper's ros2 launch, its component container, and
+# the sim-side glue/stub nodes.
+pkill -9 -f "zed_camera.launch" 2>/dev/null || true
+pkill -9 -f "zed_node" 2>/dev/null || true
+pkill -9 -f "zed_container" 2>/dev/null || true
+pkill -9 -f "component_container" 2>/dev/null || true
+pkill -9 -f "zed_odom_to_fcu" 2>/dev/null || true
+pkill -9 -f "zed_vio_stub" 2>/dev/null || true
 pkill -9 -f "QGroundControl" 2>/dev/null || true
 pkill -9 -f "qgroundcontrol" 2>/dev/null || true
 

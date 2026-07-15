@@ -1,0 +1,16 @@
+# Overrides applied on top of the DPV zed_wrapper config (zedx.yaml +
+# common_stereo.yaml) when running against the Isaac stream in phase 4
+# (start.sh window "zed", ros_params_override_path). Sim-only performance
+# trims — the real drone's configs in extensions/dpv-install stay untouched.
+/**:
+    ros__parameters:
+        general:
+            # Match what zed_sim_camera.py streams (SVGA@30). In sim_mode the
+            # SDK takes the stream's format either way; aligning the config
+            # avoids grab-settings warnings.
+            grab_resolution: 'SVGA'
+            grab_frame_rate: 30
+        depth:
+            # DPV ships ULTRA — heavy on a GPU already rendering Isaac RTX.
+            # PERFORMANCE is plenty for VIO + (stretch) beam inference checks.
+            depth_mode: 'PERFORMANCE'

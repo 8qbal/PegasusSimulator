@@ -38,10 +38,24 @@ from scipy.spatial.transform import Rotation
 # The procedural DPV aisle world lives next to the rest of the dpv_sim tooling
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)) + '/dpv_sim')
 from warehouse_aisle import build_aisle_stock
+from zed_sim_camera import enable_zed_extension, attach_zed_streamer
 
 # Guidance mode (start.sh phase g) needs GPS reaching PX4 for EKF2 to fuse it -
 # GPS-denied phases 1-3 must NOT have it, so vision/laser is the only position source.
 GUIDANCE_MODE = os.environ.get("DPV_GUIDANCE_MODE") == "1"
+
+# How the ZED camera is provided (start.sh exports this per phase):
+#   native  - Isaac-native monocular RGB-D camera in V1Config publishing
+#             /zed/image_raw|/zed/depth via SD writers (phases 1-3 contract).
+#   wrapper - Stereolabs zed-isaac-sim streamer: virtual ZED X stereo + IMU
+#             streamed to the ZED SDK; the REAL zed_wrapper (sim_mode) publishes
+#             the /zed/zed_node/* topics and VIO (phase 4). The native camera is
+#             disabled so the ZED is not rendered twice.
+#   off     - no camera at all (max RTF; localization-only work).
+ZED_MODE = os.environ.get("DPV_ZED_MODE", "native")
+if ZED_MODE not in ("native", "wrapper", "off"):
+    carb.log_warn(f"DPV_ZED_MODE='{ZED_MODE}' is not native|wrapper|off - using 'native'")
+    ZED_MODE = "native"
 
 class PegasusApp:
     """
@@ -55,6 +69,11 @@ class PegasusApp:
 
         # Acquire the timeline that will be used to start/stop the simulation
         self.timeline = omni.timeline.get_timeline_interface()
+
+        # Load the Stereolabs streamer extension early (registers the OGN node
+        # types) - fails fast with the build.sh instruction if it was never built.
+        if ZED_MODE == "wrapper":
+            enable_zed_extension(simulation_app)
 
         # Start the Pegasus Interface
         self.pg = PegasusInterface()
@@ -103,15 +122,12 @@ class PegasusApp:
 
         # Create the vehicle
         # Try to spawn the selected robot in the world to the specified namespace
-        # enable_zed_camera=True: the ZED's real-spec 1920x1200@30fps RGB-D render is by
-        # far the most expensive thing Isaac does per frame (map geometry is not the
-        # bottleneck - swapping warehouse USDs left RTF unchanged at ~0.52). With it on,
-        # expect lower/jitterier RTF and slower EKF2 convergence than with it off - set
-        # False if that becomes a problem while doing Phase 1-2 (examples/dpv_sim/PLAN.md)
-        # localization-only testing. Note this does NOT drive the uXRCE timesync churn:
-        # that comes from sim-time-vs-agent-wall-clock drift at any RTF != 1.0, and is
-        # handled by PX4_PARAM_UXRCE_DDS_SYNCT=0 in dpv_sim/start.sh.
-        config_multirotor = V1Config(enable_zed_camera=True)  # carries the real V1 thrust curve (2.8 kgf/motor, 2.0 kg)
+        # The native camera only exists in ZED_MODE=native: in wrapper mode the
+        # Stereolabs streamer renders its own stereo pair (attached below, after
+        # world.reset), and running both would double the per-frame render cost.
+        # Camera render load only moves RTF - the uXRCE timesync churn at RTF != 1.0
+        # is handled separately by PX4_PARAM_UXRCE_DDS_SYNCT=0 in dpv_sim/start.sh.
+        config_multirotor = V1Config(enable_zed_camera=(ZED_MODE == "native"))  # carries the real V1 thrust curve (2.8 kgf/motor, 2.0 kg)
 
         if GUIDANCE_MODE:
             # Guidance mode: keep GPS so PX4MavlinkBackend.send_gps_msgs() sends HIL_GPS
@@ -137,7 +153,7 @@ class PegasusApp:
         # sensor/lidar/camera topics and SLAM gets no data.
         config_multirotor.backends[0] = PX4MavlinkBackend(mavlink_config)
 
-        Multirotor(
+        vehicle = Multirotor(
             "/World/quadrotor",
             ROBOTS['V1'],
             0,
@@ -174,6 +190,27 @@ class PegasusApp:
 
         # Reset the simulation environment so that all articulations (aka robots) are initialized
         self.world.reset()
+
+        # Phase 4: mount the virtual ZED X on the nose (same spot as the native
+        # ZED 2i model) and start streaming stereo+IMU to the ZED SDK. The real
+        # zed_wrapper (start.sh tmux window "zed") connects to 127.0.0.1:<port>.
+        # SVGA@30 keeps RTF high; override with DPV_ZED_RES=HD1080|HD1200 /
+        # DPV_ZED_FPS if the vision corrector ever needs more pixels.
+        self.zed_annotator = None
+        if ZED_MODE == "wrapper":
+            self.zed_annotator = attach_zed_streamer(
+                self.world,
+                vehicle.prim_path + "/body",
+                position=(0.355, 0.0, 0.0),
+                resolution=os.environ.get("DPV_ZED_RES", "SVGA"),
+                fps=int(os.environ.get("DPV_ZED_FPS", "30")),
+                port=int(os.environ.get("DPV_ZED_PORT", "30000")),
+                transport="IPC",
+            )
+            carb.log_warn("ZED streamer attached (wrapper mode): port "
+                          + os.environ.get("DPV_ZED_PORT", "30000")
+                          + ", " + os.environ.get("DPV_ZED_RES", "SVGA")
+                          + "@" + os.environ.get("DPV_ZED_FPS", "30") + "fps, IPC")
 
         # Auxiliar variable for the timeline callback example
         self.stop_sim = False
