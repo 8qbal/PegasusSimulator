@@ -170,18 +170,23 @@ def generate_launch_description():
             launch_arguments={'use_sim_time': 'true'}.items(),
         ),
 
+        # mission_file is threaded through as a real launch substitution
+        # (previously this concatenated the Python-time default_mission string
+        # instead, so `mission_file:=...` on the CLI was silently ignored —
+        # same bug already fixed in the guidance/phase-4 launches). -w 2 avoids
+        # the DDS-discovery race documented in load_mission.sh.
         TimerAction(
             period=2.0,
             actions=[
                 ExecuteProcess(
                     cmd=[
                         'bash', '-c',
-                        'ros2 topic pub --once /onboard_command '
-                        'warehouse_ros2_msgs/msg/MissionCommand '
-                        '\'{header: {stamp: {sec: 0, nanosec: 0}, frame_id: ""}, '
-                        'cmd_type: 0, cmd_int: 0, '
-                        'cmd_string: "' + default_mission + '", '
-                        'cmd_param1_int: 0}\'',
+                        ('ros2 topic pub --once -w 2 /onboard_command '
+                         'warehouse_ros2_msgs/msg/MissionCommand '
+                         '"{header: {stamp: {sec: 0, nanosec: 0}, frame_id: \'\'}, '
+                         'cmd_type: 0, cmd_int: 0, '
+                         'cmd_string: \'', mission_file, '\', '
+                         'cmd_param1_int: 0}"'),
                     ],
                     output='screen',
                 )

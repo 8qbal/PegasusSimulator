@@ -23,9 +23,8 @@ from isaacsim.core.api import World
 
 # Import the Pegasus API for simulating drones
 from pegasus.simulator.params import ROBOTS, SIMULATION_ENVIRONMENTS
-from pegasus.simulator.logic.state import State
 from pegasus.simulator.logic.backends.px4_mavlink_backend import PX4MavlinkBackend, PX4MavlinkBackendConfig
-from pegasus.simulator.logic.vehicles.multirotor import Multirotor, MultirotorConfig
+from pegasus.simulator.logic.vehicles.multirotor import Multirotor
 from pegasus.simulator.logic.vehicles.multirotors.v1 import V1Config
 from pegasus.simulator.logic.sensors import Barometer, IMU, Magnetometer, GPS
 from pegasus.simulator.logic.interface.pegasus_interface import PegasusInterface

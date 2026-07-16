@@ -10,7 +10,7 @@ ZED-VIO-compatible Odometry message.
 
 import rclpy
 from rclpy.node import Node
-from geometry_msgs.msg import PoseStamped, TransformStamped
+from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Odometry
 
 
