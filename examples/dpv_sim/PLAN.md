@@ -395,6 +395,44 @@ that the vision corrector expects, with no remapping. `zed_vio_stub.py` remains 
 for phase-3 back-compat; phase 4 uses `zed_odom_to_fcu.py` (re-stamp glue on the real
 wrapper odom).
 
+### 7.3a Phase 4 BLOCKED — ZED SDK version gap (measured 2026-07-16)
+
+Phase 4 is implemented (7.3b) but **cannot run on this machine's SDK**. Measured by
+calling `sl::Camera::getSDKVersion()` directly on each library:
+
+| Component | Bundled/linked ZED SDK | Kit target |
+|---|---|---|
+| zed-isaac-sim **v5.1.0** streamer (sender) — the ONLY release supporting Isaac Sim 6.0 | **5.2.0** | 110.0 (Isaac 6.0) |
+| zed-isaac-sim **v4.2.1** (tested as a downgrade) | **5.2.0** — identical | 107.3 (Isaac 5.0) |
+| `/usr/local/zed` + `zed_wrapper` 5.0.0 in dpv-install (receiver) | **5.0.7** | — |
+
+**The extension version is not the problem — the system SDK is too old.** Stereolabs
+ships the same SDK 5.2.0 runtime in both the 4.x and 5.x extension lines, so
+downgrading the extension does not close the gap (and 4.x additionally targets kit
+107.3, so it will not even load in Isaac Sim 6.0). v5.1.0 is the correct choice here.
+
+Symptom chain: `Backward compatibility required.` -> `Metadata timeout. the size is
+equal to 196 instead of 21960.` -> `Invalid calibration file` -> `zed_node` segfault
+(exit -11). The calibration metadata struct changed between 5.0.x and 5.2.x.
+
+Both workarounds are closed, by measurement not guesswork:
+- **Sender -> 5.0.7** (symlink the system lib into the extension's `bin/`): the plugin
+  has an `isZEDSDKCompatible` gate and refuses it — `[ZED] Error while loading ZED SDK`,
+  so nothing streams at all (metadata size `-1`).
+- **Receiver -> 5.2.0** (`LD_LIBRARY_PATH` the wrapper at the bundled lib): ABI break.
+  Of the 173 `sl::` symbols `libzed_camera_component.so` needs, **4 are absent** from
+  5.2.0 (`InputType::setFromSerialNumber`, `InputType::setFromCameraID`,
+  `InputType` copy ctor, `PositionalTrackingParameters` ctor) — undefined-symbol crash.
+- **Older extension**: no v5.0.x release/tag exists (the CHANGELOG's 5.0.0/5.0.1 were
+  never published); 4.X.X targets Isaac Sim 5.0 and predates 6.0 support.
+
+**Unblocking requires ZED SDK 5.2.0 + a `zed_wrapper` rebuilt against it** — i.e.
+upgrading dpv-install, which the §1 constraint forbids and which would diverge the sim
+from the drone's actual flight software (SDK 5.0.x / wrapper 5.0.0). That is a product
+decision: it only makes sense **once the drone itself moves to SDK 5.2**. Until then
+`./start.sh` defaults to phase 2 (laser EV + native Isaac ZED 2i RGB-D), which is
+unaffected — phase 4 only changes where PX4's EV comes from.
+
 ### 7.3b Phase 4 — real ZED VIO (implemented 2026-07)
 
 The full real EV chain now runs; see `examples/dpv_sim/README.md` "Phase 4" for

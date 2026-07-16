@@ -1,0 +1,4 @@
+[submodule "extensions/zed-isaac-sim"]
+	path = extensions/zed-isaac-sim
+	url = https://github.com/stereolabs/zed-isaac-sim.git
+	branch = main

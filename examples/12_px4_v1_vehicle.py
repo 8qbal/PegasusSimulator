@@ -204,12 +204,13 @@ class PegasusApp:
                 resolution=os.environ.get("DPV_ZED_RES", "SVGA"),
                 fps=int(os.environ.get("DPV_ZED_FPS", "30")),
                 port=int(os.environ.get("DPV_ZED_PORT", "30000")),
-                transport="IPC",
+                transport=os.environ.get("DPV_ZED_TRANSPORT", "BOTH"),
             )
             carb.log_warn("ZED streamer attached (wrapper mode): port "
                           + os.environ.get("DPV_ZED_PORT", "30000")
                           + ", " + os.environ.get("DPV_ZED_RES", "SVGA")
-                          + "@" + os.environ.get("DPV_ZED_FPS", "30") + "fps, IPC")
+                          + "@" + os.environ.get("DPV_ZED_FPS", "30") + "fps, "
+                          + os.environ.get("DPV_ZED_TRANSPORT", "BOTH"))
 
         # Auxiliar variable for the timeline callback example
         self.stop_sim = False

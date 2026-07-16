@@ -62,7 +62,7 @@ def attach_zed_streamer(
     resolution="SVGA",
     fps=30,
     port=30000,
-    transport="IPC",
+    transport="BOTH",
     mass_kg=0.15,
 ):
     """Mount a virtual ZED X on a vehicle rigid body and start streaming it.
@@ -75,7 +75,14 @@ def attach_zed_streamer(
             keeps RTF high, and the real drone only grabs HD720-class anyway.
         fps: 15 | 30 | 60 | 120 (streamer-validated).
         port: ZED SDK stream port (zed_wrapper sim_port must match).
-        transport: IPC (same-machine, cheap - our case) | NETWORK | BOTH.
+        transport: BOTH (extension default: IPC + network, so the receiver can
+            use whichever it negotiates) | IPC (same-machine only) | NETWORK.
+
+    Note: the streamer auto-assigns the virtual camera's serial number for
+    stereo ZED_X models. The node's serialNumber input is only honoured for
+    VIRTUAL_ZED_X (two paired ZED X One cameras), per the extension README
+    and stereolabs/zed-isaac-sim#34 - so an auto-generated S/N in the
+    zed_wrapper log is expected, not a fault.
 
     Returns the ZEDAnnotator (owns the render products + stream graph nodes).
 
@@ -126,8 +133,8 @@ def attach_zed_streamer(
         int(port),              # streaming_port
         resolution,             # resolution token
         int(fps),               # fps
-        8000,                   # bitrate (unused over IPC)
-        4096,                   # chunk size (unused over IPC)
+        8000,                   # bitrate (network transport only)
+        4096,                   # chunk size (network transport only)
         transport,              # transport layer mode
     )
     return annotator

@@ -9,6 +9,25 @@ grouped by work session instead of release number. Format loosely follows
 
 ## 2026-07-16 — Cleanup
 
+### Changed
+- `./start.sh` now defaults to **phase 2** (GPS-denied laser EV + mission stack +
+  native Isaac ZED 2i RGB-D) instead of phase 4. Phase 4 is implemented but blocked
+  by a ZED SDK version gap and remains available as `./start.sh 4`.
+
+### Known issues
+- **Phase 4 (real ZED VIO) is blocked by a vendor version gap.** The only
+  Isaac-Sim-6.0 streamer release (zed-isaac-sim v5.1.0) bundles **ZED SDK 5.2.0**,
+  while this machine's SDK and the drone's `zed_wrapper` 5.0.0 are on **5.0.7**
+  (measured via `sl::Camera::getSDKVersion()`). The 5.0.x↔5.2.x calibration-metadata
+  change makes `zed_node` segfault. Neither workaround is viable: forcing the sender
+  onto 5.0.7 trips the plugin's `isZEDSDKCompatible` gate, and pointing the receiver
+  at 5.2.0 breaks ABI (4 of the 173 `sl::` symbols the wrapper needs are gone).
+  Downgrading the extension does not help: v4.2.1 bundles the *same* SDK 5.2.0 and
+  targets kit 107.3 (Isaac Sim 5.0), so it will not load in Isaac Sim 6.0 — v5.1.0 is
+  the correct extension; the system SDK is simply older than every release expects.
+  Unblocking needs ZED SDK 5.2.0 **and** a `zed_wrapper` rebuilt against it — best
+  done when the drone's own software moves. See `examples/dpv_sim/PLAN.md` §7.3a.
+
 ### Fixed
 - `isaac_nav_bringup_phase2.launch.py` / `isaac_nav_bringup_phase3.launch.py`: the
   declared `mission_file` launch argument was never actually used — the mission-load

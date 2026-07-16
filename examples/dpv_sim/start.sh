@@ -2,14 +2,20 @@
 # start.sh — launch Pegasus DPV simulation in tmux
 #
 # Usage:  ./start.sh [1|2|3|4|g]
-#   phase 4 = REAL ZED VIO as the EV source (default): Stereolabs zed-isaac-sim
-#             streamer in Isaac -> ZED SDK -> real zed_wrapper (sim_mode, tmux
-#             window "zed") -> zed_odom_to_fcu.py -> PX4. Full mission stack,
-#             cartographer in shadow mode. One-time setup:
-#               cd extensions/zed-isaac-sim && ./build.sh
-#   phase 1 = localization only (laser EV)
-#   phase 2 = + mission/navigation (laser EV)
-#   phase 3 = + vision corrector on the stub (off by default; launch_vision:=true)
+#   phase 2 = GPS-denied localization + mission/navigation (DEFAULT). Laser EV
+#             (lidar -> cartographer -> PX4), native Isaac ZED 2i RGB-D camera
+#             on /zed/image_raw + /zed/depth. This is the proven flight path.
+#   phase 1 = localization only (laser EV), no mission stack
+#   phase 3 = phase 2 + vision corrector on the ZED VIO stub
+#             (off by default; launch_vision:=true)
+#   phase 4 = EXPERIMENTAL / currently BLOCKED - real ZED VIO as the EV source
+#             via the Stereolabs zed-isaac-sim streamer -> ZED SDK -> real
+#             zed_wrapper (sim_mode). Blocked by a vendor version gap: the only
+#             Isaac-Sim-6.0 extension (v5.1.0) streams a metadata format this
+#             machine's ZED SDK 5.0.7 receiver cannot parse ("Backward
+#             compatibility required" -> "Metadata timeout ... 196 instead of
+#             21960" -> zed_node segfault). Needs a ZED SDK upgrade, which also
+#             pins zed_wrapper - see examples/dpv_sim/PLAN.md 7.3b.
 #   phase g = guidance mode: GPS-fused localization (no SLAM/EV/vision), real
 #             mission/planner/trajectory stack, arm->offboard->auto-mission flight
 #
@@ -18,7 +24,7 @@
 # Detach from session: Ctrl+B, D
 set -euo pipefail
 
-PHASE="${1:-4}"
+PHASE="${1:-2}"
 SESSION="dpv-sim"
 REPO="$HOME/PegasusSimulator"
 DPV_INSTALL="$REPO/extensions/dpv-install"
@@ -141,8 +147,13 @@ tmux send-keys -t "$SESSION:2" \
 # re-run it with Up+Enter in this window.
 tmux new-window -t "$SESSION" -n zed
 if [ "$PHASE" = "4" ]; then
+    # LC_ALL=C: the ZED SDK's .conf parser misreads the downloaded/streamed
+    # calibration file under a non-C locale (this box defaults to
+    # en_US.UTF-8) - the SDK's own diagnostic names this exact fix
+    # ("Invalid calibration file. On Linux, call export LC_ALL=\"C\" and
+    # restart your application."), right before the zed_container segfaults.
     tmux send-keys -t "$SESSION:3" \
-        "source /opt/ros/humble/setup.bash && source $DPV_INSTALL/setup.bash && echo '=== zed_wrapper (sim_mode, ZED SDK stream from Isaac) ===' && sleep 45 && ros2 launch zed_wrapper zed_camera.launch.py camera_model:=zedx camera_name:=zed sim_mode:=true sim_address:=127.0.0.1 sim_port:=30000 publish_tf:=false publish_map_tf:=false publish_urdf:=false publish_imu_tf:=false use_sim_time:=true ros_params_override_path:=$REPO/examples/dpv_sim/zed_sim_overrides.yaml" Enter
+        "export LC_ALL=C && source /opt/ros/humble/setup.bash && source $DPV_INSTALL/setup.bash && echo '=== zed_wrapper (sim_mode, ZED SDK stream from Isaac) ===' && sleep 45 && ros2 launch zed_wrapper zed_camera.launch.py camera_model:=zedx camera_name:=zed sim_mode:=true sim_address:=127.0.0.1 sim_port:=30000 publish_tf:=false publish_map_tf:=false publish_urdf:=false publish_imu_tf:=false use_sim_time:=true ros_params_override_path:=$REPO/examples/dpv_sim/zed_sim_overrides.yaml" Enter
 else
     tmux send-keys -t "$SESSION:3" \
         "echo 'zed_wrapper window unused in phase $PHASE (phase 4 only)'" Enter
