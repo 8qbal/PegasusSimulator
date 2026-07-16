@@ -22,7 +22,7 @@ grouped by work session instead of release number. Format loosely follows
 - Unused imports left over from recent edits: `State` and `MultirotorConfig` in
   `examples/12_px4_v1_vehicle.py`, `TransformStamped` in `examples/dpv_sim/zed_vio_stub.py`.
 
-## 2026-07-15 — Phase 4: real ZED VIO
+## 2026-07-15 — ZED VIO
 
 ### Added
 - `extensions/zed-isaac-sim/` — Stereolabs' `zed-isaac-sim` v5.1.0, pinned (the June
@@ -61,7 +61,7 @@ grouped by work session instead of release number. Format loosely follows
   laser|zed` plus `--ev-ctrl`/`--hgt-ref` overrides for staging back toward the
   real-drone config (`11`/`3`) once the ZED VIO chain is verified stable.
 
-## 2026-07-14 — GPS-denied stack hardening
+## 2026-07-14 — Starting Cam + Lidar Setup
 
 ### Fixed
 - Spawn-height tilt-init bug: spawning the vehicle above its resting height made
@@ -101,7 +101,7 @@ grouped by work session instead of release number. Format loosely follows
   (load/start/terminate/reset/state), with the `-w 2` fix for a DDS-discovery race
   that could otherwise drop the mission-load message before any subscriber matched.
 
-## 2026-07-13 — DPV warehouse autonomy integration (Phases 1–3)
+## 2026-07-13 — DPV warehouse autonomy integration
 
 ### Added
 - Phase 1: Isaac lidar (`/scan`, frame `laser_link`) → Cartographer SLAM →
@@ -123,7 +123,7 @@ grouped by work session instead of release number. Format loosely follows
 - `start.sh` / `stop.sh` — tmux-orchestrated bring-up/teardown across Isaac Sim,
   MicroXRCEAgent, the DPV bringup, and QGroundControl.
 
-## 2026-07-06/13 — V1 vehicle + GPS-denied SLAM pipeline
+## 2026-07-06/13 — V1 vehicle + sensor setup
 
 ### Added
 - `V1` vehicle (`extensions/pegasus.simulator/.../vehicles/multirotors/v1.py`) — a
@@ -142,8 +142,7 @@ grouped by work session instead of release number. Format loosely follows
 
 ## 2026-07-03 — Isaac Sim 6.0 port
 
-Ported the framework from Isaac Sim 5.1 to 6.0 for PX4 v1.16.2 (see
-`README_ISAACSIM6_FIXES.md` for the full debug log).
+Ported the framework from Isaac Sim 5.1 to 6.0 for PX4 v1.16.2 (mostly API changes).
 
 ### Fixed
 - Rotor thrust, drag, and rolling-moment torque were silently discarded: writing a
