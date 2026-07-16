@@ -15,7 +15,7 @@
 
 Check the provided documentation [here](https://pegasussimulator.github.io/PegasusSimulator/) to discover how to install and use this framework.
 
-## Tested Configuration (this fork)
+## FORK (Digital Place Vision)
 
 This fork has been ported to and validated end-to-end (spawn → PX4 boot → EKF init → arm → takeoff) with:
 
@@ -52,12 +52,14 @@ Please refer to the updated documentation for more details.
 > file). The system-side ROS 2 nodes — e.g. `examples/slam_v1/run_slam.sh` — still
 > source system ROS 2 directly and are unaffected.
 
-* **2025-10-26**: Pegasus Simulator v5.1.0 is released for Isaac 5.1.0. This version is **NOT** compatible with older versions of Isaac Sim. The Ardupilot experimental interface was not tested in this version. This update had an initial open-source contribution from [Victor Kallenbach](https://github.com/HO4X).
 * **2026-06-23**: Pegasus Simulator v6.0.0 is released for Isaac 6.0. Updated all `omni.isaac.*` imports to `isaacsim.*` equivalents and removed deprecated Kit dependencies. The Ardupilot experimental interface was not tested in this version.
+* **2025-10-26**: Pegasus Simulator v5.1.0 is released for Isaac 5.1.0. This version is **NOT** compatible with older versions of Isaac Sim. The Ardupilot experimental interface was not tested in this version. This update had an initial open-source contribution from [Victor Kallenbach](https://github.com/HO4X).
 * **2025-10-25**: Pegasus Simulator v4.5.1 is released for Isaac 4.5.0. This version is **NOT** compatible with older versions of Isaac Sim. The Ardupilot experimental interface was fixed and improved by [Seunghwan Jo](https://github.com/SwiftGust) and [Tomer Tiplitsky](https://github.com/TomerTip).
 * **2025-07-20**: Pegasus Simulator v4.5.0 is released for Isaac 4.5.0. This version is **NOT** compatible with older versions of Isaac Sim. The Ardupilot experimental interface was not tested in this version.
 * **2024-11-01**: Pegasus Simulator v4.2.0 is released for Isaac 4.2.0. This version is **NOT** compatible with older versions of Isaac Sim. This version includes a new experimental interface for Ardupilot integration, provided by open-source contributor [Tomer Tiplitsky](https://github.com/TomerTip).
 * **2024-08-02**: Pegasus Simulator v4.1.0 is released for Isaac 4.1.0. This version is **NOT** compatible with older versions of Isaac Sim.
+
+# Below here is what remain from the main repo
 
 ## Citation
 
