@@ -1,37 +1,52 @@
-# Pegasus Simulator
+# Pegasus Simulator — Digital Place Vision fork
 
 ![IsaacSim 6.0](https://img.shields.io/badge/IsaacSim-6.0.0-brightgreen.svg)
 ![PX4-Autopilot 1.16.2](https://img.shields.io/badge/PX4--Autopilot-1.16.2-brightgreen.svg)
 ![ArduPilot-Copter 4.4](https://img.shields.io/badge/ArduPilot--Copter-4.4.0-brightgreen.svg)
 ![Ubuntu 22.04](https://img.shields.io/badge/Ubuntu-22.04LTS-brightgreen.svg)
-[![](https://dcbadge.limes.pink/api/server/[INVITE](https://discord.gg/AjCxw2QUmt?style=flat))](https://discord.gg/AjCxw2QUmt)
 
-**Pegasus Simulator** is a framework built on top of [NVIDIA Omniverse](https://docs.omniverse.nvidia.com/) and [IsaacSim](https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/overview.html). It is designed to provide an easy yet powerful way of simulating the dynamics of vehicles. It provides a simulation interface for [PX4](https://px4.io/) and [ArduPilot](https://ardupilot.org/) integration, as well as a custom python control interface. At the moment, only multirotor vehicles are supported, with support for other vehicle topologies planned for future versions.
+> **This is a fork of [PegasusSimulator/PegasusSimulator](https://github.com/PegasusSimulator/PegasusSimulator).**
+> The upstream project is a framework built on top of [NVIDIA Omniverse](https://docs.omniverse.nvidia.com/)
+> and [Isaac Sim](https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/overview.html) for simulating
+> the dynamics of aerial vehicles with [PX4](https://px4.io/) / [ArduPilot](https://ardupilot.org/) integration.
+> See the [upstream documentation](https://pegasussimulator.github.io/PegasusSimulator/) for the original
+> framework, its installation, and its API.
+>
+> This fork ports the framework to **Isaac Sim 6.0** and integrates a real drone ("DPV" — Digital Place
+> Vision) GPS-denied autonomy stack against it in place of Gazebo. All upstream content is preserved below
+> the fork section; the [`CHANGELOG.md`](CHANGELOG.md) records every change session by session.
 
-<p align = "center">
-<a href="https://youtu.be/_11OCFwf_GE" target="_blank"><img src="docs/_static/pegasus_cover.png" alt="Pegasus Simulator image" height="300"/></a>
-<a href="https://youtu.be/_11OCFwf_GE" target="_blank"><img src="docs/_static/mini demo.gif" alt="Pegasus Simulator gif" height="300"/></a>
-</p>
+## What this fork changes
 
-Check the provided documentation [here](https://pegasussimulator.github.io/PegasusSimulator/) to discover how to install and use this framework.
-
-## FORK (Digital Place Vision)
-
-This fork has been ported to and validated end-to-end (spawn → PX4 boot → EKF init → arm → takeoff) with:
+The framework has been ported to and validated end-to-end (spawn → PX4 boot → EKF init → arm → takeoff → auto
+mission) on:
 
 | Component | Version |
 |---|---|
-| NVIDIA Isaac Sim | **6.0.0** (imports use `isaacsim.*`; physics via `isaacsim.core.experimental.prims`) |
+| NVIDIA Isaac Sim | **6.0.0** (imports moved from `omni.isaac.*` to `isaacsim.*`; physics via `isaacsim.core.experimental.prims`) |
 | PX4-Autopilot | **v1.16.2** (SITL, TCP HIL link on port 4560 — the simulator is the `tcpin` server) |
 | Ubuntu | 22.04 LTS |
 | Python (Isaac bundled) | 3.12 |
 
-⚠️ Notes for PX4 v1.16+: the `PX4_SIM_PROTOCOL` environment variable is no longer used by
-PX4 — the HIL link is always TCP, so the default `connection_type` in
-`PX4MavlinkBackendConfig` must remain `tcpin`. QGroundControl connects automatically on
-UDP 14550 when running on the same machine.
+**Isaac Sim 6.0 port.** Updated all `omni.isaac.*` imports to their `isaacsim.*` equivalents, moved rotor
+force/torque application to the Isaac 6.0 `RigidPrim` tensor API (the old bare `physxForce` USD attributes
+were silently discarded), added `isaacsim.core.api` as an explicit extension dependency, and fixed the PX4
+v1.16 MAVLink HIL link — it is always TCP with the simulator as the `tcpin` server, so `connection_type`
+must stay `tcpin` and the removed `PX4_SIM_PROTOCOL` env var is a no-op. QGroundControl connects
+automatically on UDP 14550 on the same machine.
 
-## Latest Updates
+**DPV autonomy stack (`examples/dpv_sim/`).** A GPS-denied warehouse-inspection pipeline replacing Gazebo:
+a full-scale custom `V1` quadrotor (bench-measured thrust curve, ZED 2i-class RGB-D camera, RPLIDAR-class 2D
+lidar), Cartographer SLAM feeding PX4 external vision in place of GPS, a warehouse mission / path-planning /
+pose-correction chain, and a real ZED SDK VIO path via the Stereolabs `zed-isaac-sim` streamer. `start.sh` /
+`stop.sh` orchestrate the whole bring-up over tmux (Isaac Sim, MicroXRCEAgent, the ROS 2 bringup, and
+QGroundControl), with selectable phases — see [`examples/dpv_sim/`](examples/dpv_sim) and the phase notes in
+`examples/dpv_sim/PLAN.md`.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full, dated list of changes (including known issues such as the
+Phase 4 real-ZED-VIO SDK version gap).
+
+## Upstream project — latest updates
 
 ⚠️ For users of versions prior to v5.1.0:
 A new command line tool named `isaac_run` is now used to launch Isaac Sim. **This is a function that should be added to your .bashrc or .zshrc file during the installation of Isaac Sim.** See [Installation Instructions](https://pegasussimulator.github.io/PegasusSimulator/source/setup/installation.html) for more details.
@@ -59,7 +74,9 @@ Please refer to the updated documentation for more details.
 * **2024-11-01**: Pegasus Simulator v4.2.0 is released for Isaac 4.2.0. This version is **NOT** compatible with older versions of Isaac Sim. This version includes a new experimental interface for Ardupilot integration, provided by open-source contributor [Tomer Tiplitsky](https://github.com/TomerTip).
 * **2024-08-02**: Pegasus Simulator v4.1.0 is released for Isaac 4.1.0. This version is **NOT** compatible with older versions of Isaac Sim.
 
-# Below here is what remain from the main repo
+---
+
+*Everything below is unchanged from the upstream Pegasus Simulator project.*
 
 ## Citation
 
